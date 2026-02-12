@@ -1,0 +1,36 @@
+# Configuration File Example
+# Copy this to config.json and customize
+
+{
+  "server": {
+    "port": 8080,
+    "host": "localhost",
+    "tls": {
+      "enabled": false,
+      "cert_file": "cert.pem",
+      "key_file": "key.pem"
+    }
+  },
+  "security": {
+    "session_timeout_hours": 24,
+    "max_upload_size_mb": 100,
+    "rate_limit_per_minute": 60,
+    "allowed_origins": ["http://localhost:8080"]
+  },
+  "storage": {
+    "upload_directory": "./uploads",
+    "temp_directory": "./temp",
+    "max_storage_gb": 100
+  },
+  "features": {
+    "enable_file_search": true,
+    "enable_zip_creation": true,
+    "enable_public_sharing": false
+  },
+  "logging": {
+    "level": "info",
+    "file": "./logs/filemanager.log",
+    "max_size_mb": 100,
+    "max_backups": 10
+  }
+}
