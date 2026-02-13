@@ -162,6 +162,26 @@ func (sm *SessionManager) Cleanup() {
 	}
 }
 
+// Helper function to validate and get absolute path
+func validatePath(requestPath string) (string, error) {
+	cleanPath, err := filepath.Abs(filepath.Clean(requestPath))
+	if err != nil {
+		return "", err
+	}
+	
+	baseUploadDir, err := filepath.Abs(uploadDir)
+	if err != nil {
+		return "", err
+	}
+	
+	// Ensure the resolved path is within the upload directory
+	if !strings.HasPrefix(cleanPath, baseUploadDir) {
+		return "", nil // nil indicates access denied
+	}
+	
+	return cleanPath, nil
+}
+
 // Middleware
 func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -273,10 +293,22 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		path = uploadDir
 	}
 	
-	// Security: prevent directory traversal
-	cleanPath := filepath.Clean(path)
-	if !strings.HasPrefix(cleanPath, uploadDir) {
-		cleanPath = uploadDir
+	// Security: validate path using absolute path comparison
+	cleanPath, err := validatePath(path)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid path",
+		})
+		return
+	}
+	
+	if cleanPath == "" {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Access denied",
+		})
+		return
 	}
 	
 	files, err := os.ReadDir(cleanPath)
@@ -343,7 +375,17 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	filename := filepath.Base(handler.Filename)
 	filename = strings.ReplaceAll(filename, "..", "")
 	
-	destPath := filepath.Join(uploadDir, filename)
+	// Validate upload directory path
+	baseUploadDir, err := filepath.Abs(uploadDir)
+	if err != nil {
+		sendJSON(w, http.StatusInternalServerError, Response{
+			Success: false,
+			Message: "Server error",
+		})
+		return
+	}
+	
+	destPath := filepath.Join(baseUploadDir, filename)
 	
 	dest, err := os.Create(destPath)
 	if err != nil {
@@ -380,9 +422,14 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Security: prevent directory traversal
-	cleanPath := filepath.Clean(path)
-	if !strings.HasPrefix(cleanPath, uploadDir) {
+	// Security: validate path using absolute path comparison
+	cleanPath, err := validatePath(path)
+	if err != nil {
+		http.Error(w, "Invalid path", http.StatusBadRequest)
+		return
+	}
+	
+	if cleanPath == "" {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
@@ -422,9 +469,17 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Security: prevent directory traversal
-	cleanPath := filepath.Clean(path)
-	if !strings.HasPrefix(cleanPath, uploadDir) {
+	// Security: validate path using absolute path comparison
+	cleanPath, err := validatePath(path)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid path",
+		})
+		return
+	}
+	
+	if cleanPath == "" {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Access denied",
@@ -468,9 +523,17 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Security: prevent directory traversal
-	cleanOldPath := filepath.Clean(req.OldPath)
-	if !strings.HasPrefix(cleanOldPath, uploadDir) {
+	// Security: validate old path using absolute path comparison
+	cleanOldPath, err := validatePath(req.OldPath)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid path",
+		})
+		return
+	}
+	
+	if cleanOldPath == "" {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Access denied",
@@ -482,7 +545,17 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 	newName := filepath.Base(req.NewName)
 	newPath := filepath.Join(filepath.Dir(cleanOldPath), newName)
 	
-	if err := os.Rename(cleanOldPath, newPath); err != nil {
+	// Validate new path is still within upload dir
+	validatedNewPath, err := validatePath(newPath)
+	if err != nil || validatedNewPath == "" {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Invalid new path",
+		})
+		return
+	}
+	
+	if err := os.Rename(cleanOldPath, validatedNewPath); err != nil {
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to rename",
@@ -494,7 +567,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Message: "Renamed successfully",
 		Data: map[string]string{
-			"newPath": newPath,
+			"newPath": validatedNewPath,
 		},
 	})
 }
@@ -521,16 +594,30 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Security: prevent directory traversal
-	basePath := filepath.Clean(req.Path)
-	if !strings.HasPrefix(basePath, uploadDir) {
-		basePath = uploadDir
+	// Security: validate base path using absolute path comparison
+	basePath, err := validatePath(req.Path)
+	if err != nil {
+		basePath, _ = filepath.Abs(uploadDir)
+	}
+	
+	if basePath == "" {
+		basePath, _ = filepath.Abs(uploadDir)
 	}
 	
 	dirName := filepath.Base(req.Name)
 	fullPath := filepath.Join(basePath, dirName)
 	
-	if err := os.MkdirAll(fullPath, 0755); err != nil {
+	// Validate new directory path is still within upload dir
+	validatedPath, err := validatePath(fullPath)
+	if err != nil || validatedPath == "" {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Invalid path",
+		})
+		return
+	}
+	
+	if err := os.MkdirAll(validatedPath, 0755); err != nil {
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to create directory",
@@ -542,7 +629,7 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		Success: true,
 		Message: "Directory created successfully",
 		Data: map[string]string{
-			"path": fullPath,
+			"path": validatedPath,
 		},
 	})
 }
@@ -574,7 +661,16 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		zipName += ".zip"
 	}
 	
-	zipPath := filepath.Join(uploadDir, zipName)
+	baseUploadDir, err := filepath.Abs(uploadDir)
+	if err != nil {
+		sendJSON(w, http.StatusInternalServerError, Response{
+			Success: false,
+			Message: "Server error",
+		})
+		return
+	}
+	
+	zipPath := filepath.Join(baseUploadDir, zipName)
 	
 	zipFile, err := os.Create(zipPath)
 	if err != nil {
@@ -590,12 +686,12 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 	defer zipWriter.Close()
 	
 	for _, path := range req.Paths {
-		cleanPath := filepath.Clean(path)
-		if !strings.HasPrefix(cleanPath, uploadDir) {
+		cleanPath, err := validatePath(path)
+		if err != nil || cleanPath == "" {
 			continue
 		}
 		
-		if err := addToZip(zipWriter, cleanPath, uploadDir); err != nil {
+		if err := addToZip(zipWriter, cleanPath, baseUploadDir); err != nil {
 			log.Printf("Failed to add %s to zip: %v", cleanPath, err)
 		}
 	}
@@ -670,7 +766,16 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	
 	var results []FileInfo
 	
-	err := filepath.Walk(uploadDir, func(path string, info os.FileInfo, err error) error {
+	baseUploadDir, err := filepath.Abs(uploadDir)
+	if err != nil {
+		sendJSON(w, http.StatusInternalServerError, Response{
+			Success: false,
+			Message: "Server error",
+		})
+		return
+	}
+	
+	err = filepath.Walk(baseUploadDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
