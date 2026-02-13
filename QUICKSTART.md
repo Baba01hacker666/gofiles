@@ -4,8 +4,8 @@
 
 ### Step 1: Extract
 ```bash
-unzip filemanager.zip
-cd filemanager
+git clone https://github.com/Baba01hacker666/gofiles
+cd gofiles
 ```
 
 ### Step 2: Build
