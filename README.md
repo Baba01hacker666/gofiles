@@ -43,8 +43,8 @@ A professional, full-featured file manager with Go backend and modern web interf
 
 1. **Extract the project**
    ```bash
-   unzip filemanager.zip
-   cd filemanager
+   git clone https://github.com/Baba01hacker666/gofiles
+   cd gofiles
    ```
 
 2. **Build the server**
