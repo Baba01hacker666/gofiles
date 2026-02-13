@@ -100,18 +100,24 @@ function checkSession() {
     }
 }
 
-// File operations
+// UPDATED loadFiles to normalize and handle paths correctly
 async function loadFiles(path) {
     showLoading(true);
     
+    // Normalize path
+    let normalizedPath = path;
+    if (!normalizedPath.startsWith('./')) {
+        normalizedPath = './' + normalizedPath;
+    }
+    
     try {
-        const response = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+        const response = await fetch(`/api/files?path=${encodeURIComponent(normalizedPath)}`);
         const data = await response.json();
         
         if (data.success) {
-            currentPath = path;
+            currentPath = normalizedPath;
             renderFiles(data.data);
-            updateBreadcrumb(path);
+            updateBreadcrumb(normalizedPath);
             updateFileCount(data.data.length);
             showLoading(false);
             return true;
@@ -127,6 +133,7 @@ async function loadFiles(path) {
     }
 }
 
+// UPDATED renderFiles to show ".." (parent directory) button
 function renderFiles(files) {
     const fileList = document.getElementById('fileList');
     const emptyState = document.getElementById('emptyState');
@@ -134,7 +141,7 @@ function renderFiles(files) {
     selectedFiles.clear();
     updateActionButtons();
     
-    if (files.length === 0) {
+    if (files.length === 0 && currentPath === './uploads') {
         fileList.innerHTML = '';
         emptyState.style.display = 'block';
         return;
@@ -149,7 +156,29 @@ function renderFiles(files) {
         return a.name.localeCompare(b.name);
     });
     
-    fileList.innerHTML = files.map(file => `
+    let htmlContent = '';
+    
+    // Add "Back/Up" button if not in root directory
+    if (currentPath !== './uploads' && currentPath !== 'uploads') {
+        const parentPath = currentPath.split('/').slice(0, -1).join('/');
+        const validParentPath = parentPath || './uploads';
+        htmlContent += `
+            <tr style="background-color: var(--bg-tertiary);">
+                <td></td>
+                <td>
+                    <div class="file-name" onclick="loadFiles('${escapeHtml(validParentPath)}')" style="font-weight: bold; color: var(--primary-color);">
+                        📁 .. (Back)
+                    </div>
+                </td>
+                <td>-</td>
+                <td>-</td>
+                <td>-</td>
+                <td></td>
+            </tr>
+        `;
+    }
+    
+    htmlContent += files.map(file => `
         <tr data-path="${escapeHtml(file.path)}">
             <td>
                 <input type="checkbox" class="file-checkbox" data-path="${escapeHtml(file.path)}">
@@ -168,6 +197,8 @@ function renderFiles(files) {
             </td>
         </tr>
     `).join('');
+    
+    fileList.innerHTML = htmlContent;
     
     // Add checkbox listeners
     document.querySelectorAll('.file-checkbox').forEach(cb => {
@@ -188,9 +219,15 @@ function getFileIcon(file) {
     </svg>`;
 }
 
+// UPDATED handleFileClick to properly handle paths
 function handleFileClick(path, isDir) {
     if (isDir) {
-        loadFiles(path);
+        // Normalize path for loading
+        let normalizedPath = path;
+        if (!normalizedPath.startsWith('./')) {
+            normalizedPath = './' + normalizedPath;
+        }
+        loadFiles(normalizedPath);
     }
 }
 
@@ -256,6 +293,7 @@ function handleFileSelect(e) {
     uploadFiles(files);
 }
 
+// UPDATED uploadFiles to include current path
 async function uploadFiles(files) {
     const uploadList = document.getElementById('uploadList');
     
@@ -265,6 +303,7 @@ async function uploadFiles(files) {
         
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('path', currentPath);  // ADD CURRENT PATH!
         
         try {
             const response = await fetch('/api/upload', {
@@ -511,17 +550,23 @@ function handleSearch(e) {
     }, 300);
 }
 
-// Breadcrumb
+// UPDATED updateBreadcrumb to show clean paths
 function updateBreadcrumb(path) {
     const breadcrumb = document.getElementById('breadcrumb');
-    const parts = path.split('/').filter(p => p);
+    let cleanPath = path.replace(/^\.\//,'').replace(/\/$/, '');
+    const parts = cleanPath.split('/').filter(p => p && p !== 'uploads');
     
-    breadcrumb.innerHTML = parts.map((part, index) => {
-        const pathTo = './' + parts.slice(0, index + 1).join('/');
-        const isLast = index === parts.length - 1;
-        return `<span class="breadcrumb-item ${isLast ? 'active' : ''}" 
-                      onclick="${!isLast ? `loadFiles('${pathTo}')` : ''}">${part}</span>`;
-    }).join('');
+    let breadcrumbHTML = `<span class="breadcrumb-item" onclick="loadFiles('./uploads')">uploads</span>`;
+    
+    if (parts.length > 0) {
+        let currentBuildPath = 'uploads';
+        breadcrumbHTML += parts.map((part, index) => {
+            currentBuildPath += '/' + part;
+            return `<span class="breadcrumb-item" onclick="loadFiles('${currentBuildPath}')">${escapeHtml(part)}</span>`;
+        }).join('');
+    }
+    
+    breadcrumb.innerHTML = breadcrumbHTML;
 }
 
 // Keyboard shortcuts
