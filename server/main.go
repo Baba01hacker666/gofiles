@@ -287,6 +287,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UPDATED listFilesHandler with relative paths
 func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
@@ -311,6 +312,8 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	baseUploadDir, _ := filepath.Abs(uploadDir)
+	
 	files, err := os.ReadDir(cleanPath)
 	if err != nil {
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -327,9 +330,13 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		
+		fullPath := filepath.Join(cleanPath, file.Name())
+		// Convert absolute path to relative path for frontend
+		relPath, _ := filepath.Rel(baseUploadDir, fullPath)
+		
 		fileInfos = append(fileInfos, FileInfo{
 			Name:        file.Name(),
-			Path:        filepath.Join(cleanPath, file.Name()),
+			Path:        relPath,  // NOW RELATIVE!
 			Size:        info.Size(),
 			IsDir:       file.IsDir(),
 			ModTime:     info.ModTime(),
@@ -343,6 +350,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UPDATED uploadHandler to accept destination path
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
@@ -375,17 +383,32 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	filename := filepath.Base(handler.Filename)
 	filename = strings.ReplaceAll(filename, "..", "")
 	
-	// Validate upload directory path
-	baseUploadDir, err := filepath.Abs(uploadDir)
+	// Get destination folder from frontend (NEW!)
+	destDir := r.FormValue("path")
+	if destDir == "" {
+		destDir = uploadDir
+	}
+	
+	// Validate destination directory
+	cleanDestDir, err := validatePath(destDir)
 	if err != nil {
-		sendJSON(w, http.StatusInternalServerError, Response{
+		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
-			Message: "Server error",
+			Message: "Invalid path",
 		})
 		return
 	}
 	
-	destPath := filepath.Join(baseUploadDir, filename)
+	if cleanDestDir == "" {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Access denied",
+		})
+		return
+	}
+	
+	// Create file in the specified directory
+	destPath := filepath.Join(cleanDestDir, filename)
 	
 	dest, err := os.Create(destPath)
 	if err != nil {
@@ -405,12 +428,16 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Return relative path to frontend
+	baseUploadDir, _ := filepath.Abs(uploadDir)
+	relPath, _ := filepath.Rel(baseUploadDir, destPath)
+	
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Message: "File uploaded successfully",
 		Data: map[string]string{
 			"filename": filename,
-			"path":     destPath,
+			"path":     relPath,
 		},
 	})
 }
