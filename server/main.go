@@ -164,12 +164,32 @@ func (sm *SessionManager) Cleanup() {
 
 // Helper function to validate and get absolute path
 func validatePath(requestPath string) (string, error) {
-	cleanPath, err := filepath.Abs(filepath.Clean(requestPath))
+	// Get base upload directory as absolute path
+	baseUploadDir, err := filepath.Abs(uploadDir)
 	if err != nil {
 		return "", err
 	}
 	
-	baseUploadDir, err := filepath.Abs(uploadDir)
+	// Clean the request path
+	cleanedRequestPath := filepath.Clean(requestPath)
+	
+	// If path doesn't start with uploadDir, treat it as relative to uploadDir
+	var targetPath string
+	if strings.HasPrefix(cleanedRequestPath, "./"+uploadDir) || strings.HasPrefix(cleanedRequestPath, uploadDir) {
+		// Path already includes uploadDir prefix
+		targetPath = cleanedRequestPath
+	} else if strings.HasPrefix(cleanedRequestPath, "./") {
+		// Path starts with ./ but not ./uploads - assume relative to uploadDir
+		// Remove ./ prefix and join with uploadDir
+		relativePart := strings.TrimPrefix(cleanedRequestPath, "./")
+		targetPath = filepath.Join(uploadDir, relativePart)
+	} else {
+		// Plain relative path - join with uploadDir
+		targetPath = filepath.Join(uploadDir, cleanedRequestPath)
+	}
+	
+	// Convert to absolute path
+	cleanPath, err := filepath.Abs(targetPath)
 	if err != nil {
 		return "", err
 	}
