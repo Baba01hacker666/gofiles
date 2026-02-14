@@ -173,29 +173,29 @@ func validatePath(requestPath string) (string, error) {
 	// Clean the request path
 	cleanedRequestPath := filepath.Clean(requestPath)
 	
-	// If path doesn't start with uploadDir, treat it as relative to uploadDir
-	var targetPath string
-	if strings.HasPrefix(cleanedRequestPath, "./"+uploadDir) || strings.HasPrefix(cleanedRequestPath, uploadDir) {
-		// Path already includes uploadDir prefix
-		targetPath = cleanedRequestPath
-	} else if strings.HasPrefix(cleanedRequestPath, "./") {
-		// Path starts with ./ but not ./uploads - assume relative to uploadDir
-		// Remove ./ prefix and join with uploadDir
-		relativePart := strings.TrimPrefix(cleanedRequestPath, "./")
-		targetPath = filepath.Join(uploadDir, relativePart)
-	} else {
-		// Plain relative path - join with uploadDir
-		targetPath = filepath.Join(uploadDir, cleanedRequestPath)
+	// Normalize the path - remove leading ./
+	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "./")
+	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "uploads/")
+	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "uploads")
+	
+	// Handle empty path (root uploads directory)
+	if cleanedRequestPath == "" || cleanedRequestPath == "." {
+		return baseUploadDir, nil
 	}
 	
-	// Convert to absolute path
+	// Build target path relative to uploads directory
+	targetPath := filepath.Join(baseUploadDir, cleanedRequestPath)
+	
+	// Resolve to absolute path
 	cleanPath, err := filepath.Abs(targetPath)
 	if err != nil {
 		return "", err
 	}
 	
 	// Ensure the resolved path is within the upload directory
-	if !strings.HasPrefix(cleanPath, baseUploadDir) {
+	// Check with and without trailing separator for proper comparison
+	if !strings.HasPrefix(cleanPath, baseUploadDir) && cleanPath != baseUploadDir {
+		log.Printf("Security: Path traversal attempt denied. Base: %s, Tried: %s", baseUploadDir, cleanPath)
 		return "", nil // nil indicates access denied
 	}
 	
@@ -307,16 +307,17 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UPDATED listFilesHandler with relative paths
+// List files with proper relative path handling
 func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		path = uploadDir
+		path = "./uploads"
 	}
 	
 	// Security: validate path using absolute path comparison
 	cleanPath, err := validatePath(path)
 	if err != nil {
+		log.Printf("listFilesHandler: validatePath error - %v", err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid path",
@@ -336,6 +337,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	
 	files, err := os.ReadDir(cleanPath)
 	if err != nil {
+		log.Printf("listFilesHandler: ReadDir error for path %s - %v", cleanPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to read directory",
@@ -356,7 +358,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		
 		fileInfos = append(fileInfos, FileInfo{
 			Name:        file.Name(),
-			Path:        relPath,  // NOW RELATIVE!
+			Path:        relPath,  // Relative path for frontend
 			Size:        info.Size(),
 			IsDir:       file.IsDir(),
 			ModTime:     info.ModTime(),
@@ -370,7 +372,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UPDATED uploadHandler to accept destination path
+// Upload handler with proper path handling
 func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
@@ -382,6 +384,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+		log.Printf("uploadHandler: ParseMultipartForm error - %v", err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "File too large",
@@ -391,6 +394,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	
 	file, handler, err := r.FormFile("file")
 	if err != nil {
+		log.Printf("uploadHandler: FormFile error - %v", err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Failed to read file",
@@ -403,15 +407,16 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	filename := filepath.Base(handler.Filename)
 	filename = strings.ReplaceAll(filename, "..", "")
 	
-	// Get destination folder from frontend (NEW!)
+	// Get destination folder from frontend
 	destDir := r.FormValue("path")
 	if destDir == "" {
-		destDir = uploadDir
+		destDir = "./uploads"
 	}
 	
 	// Validate destination directory
 	cleanDestDir, err := validatePath(destDir)
 	if err != nil {
+		log.Printf("uploadHandler: validatePath error for %s - %v", destDir, err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid path",
@@ -427,11 +432,17 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// Ensure directory exists
+	if err := os.MkdirAll(cleanDestDir, 0755); err != nil {
+		log.Printf("uploadHandler: MkdirAll error for %s - %v", cleanDestDir, err)
+	}
+	
 	// Create file in the specified directory
 	destPath := filepath.Join(cleanDestDir, filename)
 	
 	dest, err := os.Create(destPath)
 	if err != nil {
+		log.Printf("uploadHandler: Create error for %s - %v", destPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to create file",
@@ -441,6 +452,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	defer dest.Close()
 	
 	if _, err := io.Copy(dest, file); err != nil {
+		log.Printf("uploadHandler: Copy error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to save file",
@@ -472,6 +484,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	// Security: validate path using absolute path comparison
 	cleanPath, err := validatePath(path)
 	if err != nil {
+		log.Printf("downloadHandler: validatePath error - %v", err)
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
@@ -483,6 +496,7 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	
 	info, err := os.Stat(cleanPath)
 	if err != nil {
+		log.Printf("downloadHandler: Stat error for %s - %v", cleanPath, err)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
@@ -519,6 +533,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	// Security: validate path using absolute path comparison
 	cleanPath, err := validatePath(path)
 	if err != nil {
+		log.Printf("deleteHandler: validatePath error - %v", err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid path",
@@ -535,6 +550,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	if err := os.RemoveAll(cleanPath); err != nil {
+		log.Printf("deleteHandler: RemoveAll error for %s - %v", cleanPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to delete",
@@ -573,6 +589,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 	// Security: validate old path using absolute path comparison
 	cleanOldPath, err := validatePath(req.OldPath)
 	if err != nil {
+		log.Printf("renameHandler: validatePath error - %v", err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid path",
@@ -595,6 +612,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 	// Validate new path is still within upload dir
 	validatedNewPath, err := validatePath(newPath)
 	if err != nil || validatedNewPath == "" {
+		log.Printf("renameHandler: validatePath error for new path - %v", err)
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Invalid new path",
@@ -603,6 +621,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	if err := os.Rename(cleanOldPath, validatedNewPath); err != nil {
+		log.Printf("renameHandler: Rename error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to rename",
@@ -643,12 +662,9 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 	
 	// Security: validate base path using absolute path comparison
 	basePath, err := validatePath(req.Path)
-	if err != nil {
-		basePath, _ = filepath.Abs(uploadDir)
-	}
-	
-	if basePath == "" {
-		basePath, _ = filepath.Abs(uploadDir)
+	if err != nil || basePath == "" {
+		baseUploadAbs, _ := filepath.Abs(uploadDir)
+		basePath = baseUploadAbs
 	}
 	
 	dirName := filepath.Base(req.Name)
@@ -657,6 +673,7 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 	// Validate new directory path is still within upload dir
 	validatedPath, err := validatePath(fullPath)
 	if err != nil || validatedPath == "" {
+		log.Printf("createDirHandler: validatePath error - %v", err)
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Invalid path",
@@ -665,6 +682,7 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	if err := os.MkdirAll(validatedPath, 0755); err != nil {
+		log.Printf("createDirHandler: MkdirAll error for %s - %v", validatedPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to create directory",
@@ -721,6 +739,7 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 	
 	zipFile, err := os.Create(zipPath)
 	if err != nil {
+		log.Printf("zipHandler: Create error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to create zip file",
@@ -801,6 +820,7 @@ func addFileToZip(zipWriter *zip.Writer, filename, zipPath string) error {
 	return err
 }
 
+// Search handler with relative paths
 func searchHandler(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query().Get("query")
 	if query == "" {
@@ -815,6 +835,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	
 	baseUploadDir, err := filepath.Abs(uploadDir)
 	if err != nil {
+		log.Printf("searchHandler: Abs error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Server error",
@@ -828,9 +849,12 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		
 		if strings.Contains(strings.ToLower(info.Name()), strings.ToLower(query)) {
+			// Convert to relative path for frontend
+			relPath, _ := filepath.Rel(baseUploadDir, path)
+			
 			results = append(results, FileInfo{
 				Name:        info.Name(),
-				Path:        path,
+				Path:        relPath,  // Relative path!
 				Size:        info.Size(),
 				IsDir:       info.IsDir(),
 				ModTime:     info.ModTime(),
@@ -842,6 +866,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	
 	if err != nil {
+		log.Printf("searchHandler: Walk error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Search failed",
@@ -863,7 +888,9 @@ func sendJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 
 func main() {
 	// Ensure directories exist
-	os.MkdirAll(uploadDir, 0755)
+	uploadAbs, _ := filepath.Abs(uploadDir)
+	os.MkdirAll(uploadAbs, 0755)
+	log.Printf("Upload directory: %s", uploadAbs)
 	
 	// Start cleanup goroutines
 	go rateLimiter.Cleanup()
