@@ -159,28 +159,42 @@ func (sm *SessionManager) Cleanup() {
 	}
 }
 
-// FIX: Improved validatePath function
+// FIXED: validatePath function - prevents path doubling issue
 func validatePath(requestPath string) (string, error) {
 	baseUploadDir, err := filepath.Abs(uploadDir)
 	if err != nil {
 		return "", err
 	}
 	
+	log.Printf("validatePath input: %s, baseUploadDir: %s", requestPath, baseUploadDir)
+	
 	// Clean the request path
 	cleanedRequestPath := filepath.Clean(requestPath)
+	
+	// If the path already contains the full absolute path, extract just the relative part
+	if strings.Contains(cleanedRequestPath, baseUploadDir) {
+		log.Printf("Path already contains absolute path, extracting relative part")
+		// Remove the base upload dir from the path
+		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, baseUploadDir)
+		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, string(filepath.Separator))
+	}
 	
 	// Normalize the path - remove leading ./ and uploads/
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "./")
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "uploads/")
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "uploads")
+	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, string(filepath.Separator))
 	
 	// Handle empty path (root uploads directory)
 	if cleanedRequestPath == "" || cleanedRequestPath == "." {
+		log.Printf("validatePath returning base upload dir")
 		return baseUploadDir, nil
 	}
 	
 	// Build target path relative to uploads directory
 	targetPath := filepath.Join(baseUploadDir, cleanedRequestPath)
+	
+	log.Printf("validatePath targetPath: %s", targetPath)
 	
 	// Resolve to absolute path
 	cleanPath, err := filepath.Abs(targetPath)
@@ -188,12 +202,16 @@ func validatePath(requestPath string) (string, error) {
 		return "", err
 	}
 	
+	log.Printf("validatePath cleanPath: %s", cleanPath)
+	
 	// Ensure the resolved path is within the upload directory
+	// Use proper path separator checking
 	if !strings.HasPrefix(cleanPath, baseUploadDir) && cleanPath != baseUploadDir {
 		log.Printf("Security: Path traversal attempt denied. Base: %s, Tried: %s", baseUploadDir, cleanPath)
 		return "", nil
 	}
 	
+	log.Printf("validatePath returning: %s", cleanPath)
 	return cleanPath, nil
 }
 
@@ -546,7 +564,6 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// FIX: Improved renameHandler - returns relative path
 func renameHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
@@ -587,7 +604,6 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Sanitize new name - remove any path separators
 	newName := filepath.Base(req.NewName)
 	newName = strings.TrimSpace(newName)
 	
@@ -620,7 +636,6 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// FIX: Return relative path, not absolute!
 	baseUploadDir, _ := filepath.Abs(uploadDir)
 	relPath, _ := filepath.Rel(baseUploadDir, validatedNewPath)
 	
@@ -633,7 +648,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// FIX: Improved createDirHandler - returns relative path
+// FIXED: createDirHandler - prevents path doubling
 func createDirHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
@@ -656,11 +671,16 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Sanitize folder name - remove any path separators
+	log.Printf("createDirHandler: Path=%s, Name=%s", req.Path, req.Name)
+	
+	// Sanitize folder name - remove any path separators and trim whitespace
 	dirName := filepath.Base(req.Name)
 	dirName = strings.TrimSpace(dirName)
+	dirName = strings.ReplaceAll(dirName, "/", "")
+	dirName = strings.ReplaceAll(dirName, "\\", "")
+	dirName = strings.ReplaceAll(dirName, "..", "")
 	
-	if dirName == "" || dirName == "." || dirName == ".." {
+	if dirName == "" || dirName == "." {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid folder name",
@@ -668,55 +688,55 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// Validate the base path where we want to create the folder
-	basePath := req.Path
-	if basePath == "" {
-		basePath = "./uploads"
-	}
+	// Get base upload directory
+	baseUploadDir, _ := filepath.Abs(uploadDir)
 	
-	cleanBasePath, err := validatePath(basePath)
-	if err != nil {
-		log.Printf("createDirHandler: validatePath error for base path %s - %v", basePath, err)
-		sendJSON(w, http.StatusBadRequest, Response{
-			Success: false,
-			Message: "Invalid base path",
-		})
-		return
-	}
-	
-	if cleanBasePath == "" {
-		sendJSON(w, http.StatusForbidden, Response{
-			Success: false,
-			Message: "Access denied to base path",
-		})
-		return
+	// Determine the parent path where we're creating the folder
+	var parentPath string
+	if req.Path == "" || req.Path == "./uploads" || req.Path == "uploads" {
+		// Creating in root of uploads
+		parentPath = baseUploadDir
+	} else {
+		// Validate the parent path
+		cleanBasePath, err := validatePath(req.Path)
+		if err != nil {
+			log.Printf("createDirHandler: validatePath error for base path %s - %v", req.Path, err)
+			sendJSON(w, http.StatusBadRequest, Response{
+				Success: false,
+				Message: "Invalid base path",
+			})
+			return
+		}
+		
+		if cleanBasePath == "" {
+			sendJSON(w, http.StatusForbidden, Response{
+				Success: false,
+				Message: "Access denied to base path",
+			})
+			return
+		}
+		
+		parentPath = cleanBasePath
 	}
 	
 	// Build the full path for the new directory
-	fullPath := filepath.Join(cleanBasePath, dirName)
+	fullPath := filepath.Join(parentPath, dirName)
 	
-	// Validate that the new directory path is still within upload dir
-	validatedPath, err := validatePath(fullPath)
-	if err != nil {
-		log.Printf("createDirHandler: validatePath error for new directory - %v", err)
-		sendJSON(w, http.StatusBadRequest, Response{
-			Success: false,
-			Message: "Invalid directory path",
-		})
-		return
-	}
+	log.Printf("createDirHandler: Full path to create: %s", fullPath)
 	
-	if validatedPath == "" {
+	// Make sure the full path is still within upload directory
+	if !strings.HasPrefix(fullPath, baseUploadDir) {
+		log.Printf("createDirHandler: Security check failed. Base: %s, Tried: %s", baseUploadDir, fullPath)
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
-			Message: "Access denied - directory would be outside uploads",
+			Message: "Access denied - would escape upload directory",
 		})
 		return
 	}
 	
 	// Create the directory
-	if err := os.MkdirAll(validatedPath, 0755); err != nil {
-		log.Printf("createDirHandler: MkdirAll error for %s - %v", validatedPath, err)
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
+		log.Printf("createDirHandler: MkdirAll error for %s - %v", fullPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
 			Message: "Failed to create directory",
@@ -724,11 +744,10 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// FIX: Convert the absolute path back to relative path for frontend response
-	baseUploadDir, _ := filepath.Abs(uploadDir)
-	relPath, _ := filepath.Rel(baseUploadDir, validatedPath)
+	// Convert the absolute path to relative path for frontend response
+	relPath, _ := filepath.Rel(baseUploadDir, fullPath)
 	
-	log.Printf("createDirHandler: Created directory %s (relative: %s)", validatedPath, relPath)
+	log.Printf("createDirHandler: Created directory. Absolute: %s, Relative: %s", fullPath, relPath)
 	
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
@@ -739,7 +758,6 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// FIX: Improved zipHandler - returns relative path
 func zipHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
@@ -803,7 +821,6 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	
-	// FIX: Return relative path for zip file
 	relZipPath, _ := filepath.Rel(baseUploadDir, zipPath)
 	
 	sendJSON(w, http.StatusOK, Response{
