@@ -457,6 +457,7 @@ function closeNewFolderModal() {
     document.getElementById('newFolderModal').classList.remove('show');
 }
 
+// FIXED: confirmNewFolder - sends clean relative path
 async function confirmNewFolder() {
     const name = document.getElementById('folderNameInput').value.trim();
     
@@ -465,12 +466,28 @@ async function confirmNewFolder() {
         return;
     }
     
+    // Clean the current path - remove leading ./ and ensure consistency
+    let cleanPath = currentPath;
+    if (cleanPath.startsWith('./')) {
+        cleanPath = cleanPath.substring(2);
+    }
+    if (cleanPath.startsWith('uploads/')) {
+        cleanPath = cleanPath.substring(8);
+    }
+    
+    // If the cleaned path is empty or just 'uploads', send empty string to backend
+    if (cleanPath === '' || cleanPath === 'uploads') {
+        cleanPath = '';
+    }
+    
+    console.log('Creating folder with path:', cleanPath, 'name:', name);
+    
     try {
         const response = await fetch('/api/mkdir', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                path: currentPath,
+                path: cleanPath,  // Send clean relative path
                 name: name
             })
         });
