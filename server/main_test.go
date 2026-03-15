@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -52,11 +55,8 @@ func TestSessionManager_Get(t *testing.T) {
 	}
 	if session != nil {
 		t.Errorf("Expected nil session for expired ID, got %v", session)
-	"os"
-	"path/filepath"
-	"strings"
-	"testing"
-)
+	}
+}
 
 func TestValidatePath(t *testing.T) {
 	// Create a temporary directory for the tests
