@@ -26,6 +26,8 @@ const (
 // Security configurations
 var (
 	apiKey = generateAPIKey()
+	
+	adminPasswordHash = sha256.Sum256([]byte("admin"))
 
 	rateLimiter = &RateLimiter{
 		visitors: make(map[string]*Visitor),
@@ -287,6 +289,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	
+	providedHash := sha256.Sum256([]byte(credentials.Password))
+	
+	if credentials.Username == "admin" && subtle.ConstantTimeCompare(adminPasswordHash[:], providedHash[:]) == 1 {
 
 	expectedHash := sha256.Sum256([]byte("admin"))
 	providedHash := sha256.Sum256([]byte(credentials.Password))
