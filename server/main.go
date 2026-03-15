@@ -60,8 +60,6 @@ func init() {
 var (
 	apiKey = generateAPIKey()
 	
-	adminPasswordHash = sha256.Sum256([]byte("admin"))
-
 	rateLimiter = &RateLimiter{
 		visitors: make(map[string]*Visitor),
 	}
@@ -370,6 +368,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	
 
+	if credentials.Username == adminUsername && bcrypt.CompareHashAndPassword(adminPasswordHash, []byte(credentials.Password)) == nil {
 		session := sessions.Create(credentials.Username)
 
 		http.SetCookie(w, &http.Cookie{
@@ -1096,6 +1095,7 @@ func main() {
 		if err := http.ListenAndServe(":"+serverPort, nil); err != nil {
 			log.Fatal(err)
 		}
+	}
 	log.Printf("Default credentials: admin / admin\n")
 	log.Println("Server starting on http://localhost:8080")
 
