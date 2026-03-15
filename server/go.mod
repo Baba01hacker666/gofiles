@@ -2,5 +2,4 @@ module filemanager
 
 go 1.21
 
-require (
-)
+require golang.org/x/crypto v0.14.0
