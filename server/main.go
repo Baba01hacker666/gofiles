@@ -26,11 +26,11 @@ const (
 // Security configurations
 var (
 	apiKey = generateAPIKey()
-	
+
 	rateLimiter = &RateLimiter{
 		visitors: make(map[string]*Visitor),
 	}
-	
+
 	sessions = &SessionManager{
 		sessions: make(map[string]*Session),
 	}
@@ -59,12 +59,12 @@ type RateLimiter struct {
 }
 
 type FileInfo struct {
-	Name         string    `json:"name"`
-	Path         string    `json:"path"`
-	Size         int64     `json:"size"`
-	IsDir        bool      `json:"isDir"`
-	ModTime      time.Time `json:"modTime"`
-	Permissions  string    `json:"permissions"`
+	Name        string    `json:"name"`
+	Path        string    `json:"path"`
+	Size        int64     `json:"size"`
+	IsDir       bool      `json:"isDir"`
+	ModTime     time.Time `json:"modTime"`
+	Permissions string    `json:"permissions"`
 }
 
 type Response struct {
@@ -82,23 +82,23 @@ func generateAPIKey() string {
 func (rl *RateLimiter) Allow(ip string) bool {
 	rl.Lock()
 	defer rl.Unlock()
-	
+
 	v, exists := rl.visitors[ip]
 	if !exists {
 		rl.visitors[ip] = &Visitor{time.Now(), 1}
 		return true
 	}
-	
+
 	if time.Since(v.lastSeen) > time.Minute {
 		v.count = 1
 		v.lastSeen = time.Now()
 		return true
 	}
-	
+
 	if v.count >= 60 {
 		return false
 	}
-	
+
 	v.count++
 	return true
 }
@@ -119,17 +119,17 @@ func (rl *RateLimiter) Cleanup() {
 func (sm *SessionManager) Create(username string) *Session {
 	sm.Lock()
 	defer sm.Unlock()
-	
+
 	sessionID := generateAPIKey()
 	csrfToken := generateAPIKey()
-	
+
 	session := &Session{
 		ID:        sessionID,
 		Username:  username,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 		CSRFToken: csrfToken,
 	}
-	
+
 	sm.sessions[sessionID] = session
 	return session
 }
@@ -137,12 +137,12 @@ func (sm *SessionManager) Create(username string) *Session {
 func (sm *SessionManager) Get(sessionID string) (*Session, bool) {
 	sm.RLock()
 	defer sm.RUnlock()
-	
+
 	session, exists := sm.sessions[sessionID]
 	if !exists || time.Now().After(session.ExpiresAt) {
 		return nil, false
 	}
-	
+
 	return session, true
 }
 
@@ -165,12 +165,12 @@ func validatePath(requestPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	log.Printf("validatePath input: %s, baseUploadDir: %s", requestPath, baseUploadDir)
-	
+
 	// Clean the request path
 	cleanedRequestPath := filepath.Clean(requestPath)
-	
+
 	// If the path already contains the full absolute path, extract just the relative part
 	if strings.Contains(cleanedRequestPath, baseUploadDir) {
 		log.Printf("Path already contains absolute path, extracting relative part")
@@ -178,39 +178,39 @@ func validatePath(requestPath string) (string, error) {
 		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, baseUploadDir)
 		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, string(filepath.Separator))
 	}
-	
+
 	// Normalize the path - remove leading ./ and uploads/
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "./")
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "uploads/")
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, "uploads")
 	cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, string(filepath.Separator))
-	
+
 	// Handle empty path (root uploads directory)
 	if cleanedRequestPath == "" || cleanedRequestPath == "." {
 		log.Printf("validatePath returning base upload dir")
 		return baseUploadDir, nil
 	}
-	
+
 	// Build target path relative to uploads directory
 	targetPath := filepath.Join(baseUploadDir, cleanedRequestPath)
-	
+
 	log.Printf("validatePath targetPath: %s", targetPath)
-	
+
 	// Resolve to absolute path
 	cleanPath, err := filepath.Abs(targetPath)
 	if err != nil {
 		return "", err
 	}
-	
+
 	log.Printf("validatePath cleanPath: %s", cleanPath)
-	
+
 	// Ensure the resolved path is within the upload directory
 	// Use proper path separator checking
-	if !strings.HasPrefix(cleanPath, baseUploadDir) && cleanPath != baseUploadDir {
+	if cleanPath != baseUploadDir && !strings.HasPrefix(cleanPath, baseUploadDir+string(filepath.Separator)) {
 		log.Printf("Security: Path traversal attempt denied. Base: %s, Tried: %s", baseUploadDir, cleanPath)
 		return "", nil
 	}
-	
+
 	log.Printf("validatePath returning: %s", cleanPath)
 	return cleanPath, nil
 }
@@ -240,7 +240,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			})
 			return
 		}
-		
+
 		_, exists := sessions.Get(cookie.Value)
 		if !exists {
 			sendJSON(w, http.StatusUnauthorized, Response{
@@ -249,7 +249,7 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			})
 			return
 		}
-		
+
 		next(w, r)
 	}
 }
@@ -274,12 +274,12 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&credentials); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -287,13 +287,13 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	expectedHash := sha256.Sum256([]byte("admin"))
 	providedHash := sha256.Sum256([]byte(credentials.Password))
-	
+
 	if credentials.Username == "admin" && subtle.ConstantTimeCompare(expectedHash[:], providedHash[:]) == 1 {
 		session := sessions.Create(credentials.Username)
-		
+
 		http.SetCookie(w, &http.Cookie{
 			Name:     "session_id",
 			Value:    session.ID,
@@ -302,7 +302,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			Secure:   false,
 			SameSite: http.SameSiteStrictMode,
 		})
-		
+
 		sendJSON(w, http.StatusOK, Response{
 			Success: true,
 			Message: "Login successful",
@@ -312,7 +312,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	sendJSON(w, http.StatusUnauthorized, Response{
 		Success: false,
 		Message: "Invalid credentials",
@@ -324,7 +324,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 	if path == "" {
 		path = "./uploads"
 	}
-	
+
 	cleanPath, err := validatePath(path)
 	if err != nil {
 		log.Printf("listFilesHandler: validatePath error - %v", err)
@@ -334,7 +334,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if cleanPath == "" {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
@@ -342,9 +342,9 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	baseUploadDir, _ := filepath.Abs(uploadDir)
-	
+
 	files, err := os.ReadDir(cleanPath)
 	if err != nil {
 		log.Printf("listFilesHandler: ReadDir error for path %s - %v", cleanPath, err)
@@ -354,17 +354,17 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	fileInfos := make([]FileInfo, 0, len(files))
 	for _, file := range files {
 		info, err := file.Info()
 		if err != nil {
 			continue
 		}
-		
+
 		fullPath := filepath.Join(cleanPath, file.Name())
 		relPath, _ := filepath.Rel(baseUploadDir, fullPath)
-		
+
 		fileInfos = append(fileInfos, FileInfo{
 			Name:        file.Name(),
 			Path:        relPath,
@@ -374,7 +374,7 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 			Permissions: info.Mode().String(),
 		})
 	}
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Data:    fileInfos,
@@ -389,7 +389,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
 		log.Printf("uploadHandler: ParseMultipartForm error - %v", err)
@@ -399,7 +399,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	file, handler, err := r.FormFile("file")
 	if err != nil {
 		log.Printf("uploadHandler: FormFile error - %v", err)
@@ -410,15 +410,15 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	
+
 	filename := filepath.Base(handler.Filename)
 	filename = strings.ReplaceAll(filename, "..", "")
-	
+
 	destDir := r.FormValue("path")
 	if destDir == "" {
 		destDir = "./uploads"
 	}
-	
+
 	cleanDestDir, err := validatePath(destDir)
 	if err != nil {
 		log.Printf("uploadHandler: validatePath error for %s - %v", destDir, err)
@@ -428,7 +428,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if cleanDestDir == "" {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
@@ -436,13 +436,13 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if err := os.MkdirAll(cleanDestDir, 0755); err != nil {
 		log.Printf("uploadHandler: MkdirAll error for %s - %v", cleanDestDir, err)
 	}
-	
+
 	destPath := filepath.Join(cleanDestDir, filename)
-	
+
 	dest, err := os.Create(destPath)
 	if err != nil {
 		log.Printf("uploadHandler: Create error for %s - %v", destPath, err)
@@ -453,7 +453,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer dest.Close()
-	
+
 	if _, err := io.Copy(dest, file); err != nil {
 		log.Printf("uploadHandler: Copy error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -462,10 +462,10 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	baseUploadDir, _ := filepath.Abs(uploadDir)
 	relPath, _ := filepath.Rel(baseUploadDir, destPath)
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Message: "File uploaded successfully",
@@ -482,34 +482,34 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Path required", http.StatusBadRequest)
 		return
 	}
-	
+
 	cleanPath, err := validatePath(path)
 	if err != nil {
 		log.Printf("downloadHandler: validatePath error - %v", err)
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
-	
+
 	if cleanPath == "" {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		return
 	}
-	
+
 	info, err := os.Stat(cleanPath)
 	if err != nil {
 		log.Printf("downloadHandler: Stat error for %s - %v", cleanPath, err)
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
-	
+
 	if info.IsDir() {
 		http.Error(w, "Cannot download directory", http.StatusBadRequest)
 		return
 	}
-	
+
 	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
 	w.Header().Set("Content-Type", "application/octet-stream")
-	
+
 	http.ServeFile(w, r, cleanPath)
 }
 
@@ -521,7 +521,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		sendJSON(w, http.StatusBadRequest, Response{
@@ -530,7 +530,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	cleanPath, err := validatePath(path)
 	if err != nil {
 		log.Printf("deleteHandler: validatePath error - %v", err)
@@ -540,7 +540,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if cleanPath == "" {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
@@ -548,7 +548,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if err := os.RemoveAll(cleanPath); err != nil {
 		log.Printf("deleteHandler: RemoveAll error for %s - %v", cleanPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -557,7 +557,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Message: "Deleted successfully",
@@ -572,12 +572,12 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	var req struct {
 		OldPath string `json:"oldPath"`
 		NewName string `json:"newName"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -585,7 +585,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	cleanOldPath, err := validatePath(req.OldPath)
 	if err != nil {
 		log.Printf("renameHandler: validatePath error - %v", err)
@@ -595,7 +595,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if cleanOldPath == "" {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
@@ -603,10 +603,10 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	newName := filepath.Base(req.NewName)
 	newName = strings.TrimSpace(newName)
-	
+
 	if newName == "" {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -614,9 +614,9 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	newPath := filepath.Join(filepath.Dir(cleanOldPath), newName)
-	
+
 	validatedNewPath, err := validatePath(newPath)
 	if err != nil || validatedNewPath == "" {
 		log.Printf("renameHandler: validatePath error for new path - %v", err)
@@ -626,7 +626,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	if err := os.Rename(cleanOldPath, validatedNewPath); err != nil {
 		log.Printf("renameHandler: Rename error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -635,10 +635,10 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	baseUploadDir, _ := filepath.Abs(uploadDir)
 	relPath, _ := filepath.Rel(baseUploadDir, validatedNewPath)
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Message: "Renamed successfully",
@@ -657,12 +657,12 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	var req struct {
 		Path string `json:"path"`
 		Name string `json:"name"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -670,16 +670,16 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	log.Printf("createDirHandler: Path=%s, Name=%s", req.Path, req.Name)
-	
+
 	// Sanitize folder name - remove any path separators and trim whitespace
 	dirName := filepath.Base(req.Name)
 	dirName = strings.TrimSpace(dirName)
 	dirName = strings.ReplaceAll(dirName, "/", "")
 	dirName = strings.ReplaceAll(dirName, "\\", "")
 	dirName = strings.ReplaceAll(dirName, "..", "")
-	
+
 	if dirName == "" || dirName == "." {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -687,10 +687,10 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	// Get base upload directory
 	baseUploadDir, _ := filepath.Abs(uploadDir)
-	
+
 	// Determine the parent path where we're creating the folder
 	var parentPath string
 	if req.Path == "" || req.Path == "./uploads" || req.Path == "uploads" {
@@ -707,7 +707,7 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		
+
 		if cleanBasePath == "" {
 			sendJSON(w, http.StatusForbidden, Response{
 				Success: false,
@@ -715,17 +715,17 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		
+
 		parentPath = cleanBasePath
 	}
-	
+
 	// Build the full path for the new directory
 	fullPath := filepath.Join(parentPath, dirName)
-	
+
 	log.Printf("createDirHandler: Full path to create: %s", fullPath)
-	
+
 	// Make sure the full path is still within upload directory
-	if !strings.HasPrefix(fullPath, baseUploadDir) {
+	if fullPath != baseUploadDir && !strings.HasPrefix(fullPath, baseUploadDir+string(filepath.Separator)) {
 		log.Printf("createDirHandler: Security check failed. Base: %s, Tried: %s", baseUploadDir, fullPath)
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
@@ -733,7 +733,7 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	// Create the directory
 	if err := os.MkdirAll(fullPath, 0755); err != nil {
 		log.Printf("createDirHandler: MkdirAll error for %s - %v", fullPath, err)
@@ -743,12 +743,12 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	// Convert the absolute path to relative path for frontend response
 	relPath, _ := filepath.Rel(baseUploadDir, fullPath)
-	
+
 	log.Printf("createDirHandler: Created directory. Absolute: %s, Relative: %s", fullPath, relPath)
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Message: "Directory created successfully",
@@ -766,12 +766,12 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	var req struct {
 		Paths []string `json:"paths"`
 		Name  string   `json:"name"`
 	}
-	
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -779,12 +779,12 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	zipName := filepath.Base(req.Name)
 	if !strings.HasSuffix(zipName, ".zip") {
 		zipName += ".zip"
 	}
-	
+
 	baseUploadDir, err := filepath.Abs(uploadDir)
 	if err != nil {
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -793,9 +793,9 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	zipPath := filepath.Join(baseUploadDir, zipName)
-	
+
 	zipFile, err := os.Create(zipPath)
 	if err != nil {
 		log.Printf("zipHandler: Create error - %v", err)
@@ -806,23 +806,23 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer zipFile.Close()
-	
+
 	zipWriter := zip.NewWriter(zipFile)
 	defer zipWriter.Close()
-	
+
 	for _, path := range req.Paths {
 		cleanPath, err := validatePath(path)
 		if err != nil || cleanPath == "" {
 			continue
 		}
-		
+
 		if err := addToZip(zipWriter, cleanPath, baseUploadDir); err != nil {
 			log.Printf("Failed to add %s to zip: %v", cleanPath, err)
 		}
 	}
-	
+
 	relZipPath, _ := filepath.Rel(baseUploadDir, zipPath)
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Message: "Zip created successfully",
@@ -837,31 +837,31 @@ func addToZip(zipWriter *zip.Writer, filename, baseDir string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	if info.IsDir() {
 		return filepath.Walk(filename, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			
+
 			if info.IsDir() {
 				return nil
 			}
-			
+
 			relPath, err := filepath.Rel(baseDir, path)
 			if err != nil {
 				return err
 			}
-			
+
 			return addFileToZip(zipWriter, path, relPath)
 		})
 	}
-	
+
 	relPath, err := filepath.Rel(baseDir, filename)
 	if err != nil {
 		return err
 	}
-	
+
 	return addFileToZip(zipWriter, filename, relPath)
 }
 
@@ -871,12 +871,12 @@ func addFileToZip(zipWriter *zip.Writer, filename, zipPath string) error {
 		return err
 	}
 	defer file.Close()
-	
+
 	writer, err := zipWriter.Create(zipPath)
 	if err != nil {
 		return err
 	}
-	
+
 	_, err = io.Copy(writer, file)
 	return err
 }
@@ -890,9 +890,9 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	var results []FileInfo
-	
+
 	baseUploadDir, err := filepath.Abs(uploadDir)
 	if err != nil {
 		log.Printf("searchHandler: Abs error - %v", err)
@@ -902,15 +902,15 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	err = filepath.Walk(baseUploadDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
-		
+
 		if strings.Contains(strings.ToLower(info.Name()), strings.ToLower(query)) {
 			relPath, _ := filepath.Rel(baseUploadDir, path)
-			
+
 			results = append(results, FileInfo{
 				Name:        info.Name(),
 				Path:        relPath,
@@ -920,10 +920,10 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 				Permissions: info.Mode().String(),
 			})
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil {
 		log.Printf("searchHandler: Walk error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -932,7 +932,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	
+
 	sendJSON(w, http.StatusOK, Response{
 		Success: true,
 		Data:    results,
@@ -949,14 +949,14 @@ func main() {
 	uploadAbs, _ := filepath.Abs(uploadDir)
 	os.MkdirAll(uploadAbs, 0755)
 	log.Printf("Upload directory: %s", uploadAbs)
-	
+
 	go rateLimiter.Cleanup()
 	go sessions.Cleanup()
-	
+
 	http.HandleFunc("/", securityHeadersMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 	}))
-	
+
 	http.HandleFunc("/api/login", securityHeadersMiddleware(rateLimitMiddleware(loginHandler)))
 	http.HandleFunc("/api/files", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(listFilesHandler))))
 	http.HandleFunc("/api/upload", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(uploadHandler))))
@@ -966,14 +966,14 @@ func main() {
 	http.HandleFunc("/api/mkdir", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(createDirHandler))))
 	http.HandleFunc("/api/zip", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(zipHandler))))
 	http.HandleFunc("/api/search", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(searchHandler))))
-	
+
 	fs := http.FileServer(http.Dir(staticDir))
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
-	
+
 	log.Printf("API Key (for reference): %s\n", apiKey)
 	log.Printf("Default credentials: admin / admin\n")
 	log.Println("Server starting on http://localhost:8080")
-	
+
 	if err := http.ListenAndServe(":8080", nil); err != nil {
 		log.Fatal(err)
 	}
