@@ -3,8 +3,6 @@ package main
 import (
 	"archive/zip"
 	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"io"
@@ -15,13 +13,48 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 const (
 	maxUploadSize = 100 * 1024 * 1024 // 100MB
-	uploadDir     = "./uploads"
 	staticDir     = "./static"
 )
+
+var (
+	uploadDir     = "./uploads"
+	serverPort    = "8080"
+	adminUsername = "admin"
+	adminPasswordHash []byte
+	certFile      = ""
+	keyFile       = ""
+)
+
+func init() {
+	if p := os.Getenv("PORT"); p != "" {
+		serverPort = p
+	}
+	if u := os.Getenv("UPLOAD_DIR"); u != "" {
+		uploadDir = u
+	}
+	if u := os.Getenv("ADMIN_USERNAME"); u != "" {
+		adminUsername = u
+	}
+	if p := os.Getenv("ADMIN_PASSWORD_HASH"); p != "" {
+		adminPasswordHash = []byte(p)
+	} else {
+		// Default to bcrypt hash of "admin"
+		hash, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+		adminPasswordHash = hash
+	}
+	if c := os.Getenv("CERT_FILE"); c != "" {
+		certFile = c
+	}
+	if k := os.Getenv("KEY_FILE"); k != "" {
+		keyFile = k
+	}
+}
 
 // Security configurations
 var (
@@ -81,9 +114,50 @@ func generateAPIKey() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-func (rl *RateLimiter) Allow(ip string) bool {
+func (rl *RateLimiter) Allow(ip, path string) bool {
 	rl.Lock()
 	defer rl.Unlock()
+	
+	// Check global IP limit
+	globalKey := ip
+	globalV, globalExists := rl.visitors[globalKey]
+	if !globalExists {
+		rl.visitors[globalKey] = &Visitor{time.Now(), 1}
+		globalV = rl.visitors[globalKey]
+	} else {
+		if time.Since(globalV.lastSeen) > time.Minute {
+			globalV.count = 0
+			globalV.lastSeen = time.Now()
+		}
+		if globalV.count >= 60 {
+			return false // Global rate limit exceeded
+		}
+		globalV.count++
+	}
+
+	// Check specific endpoint limit for login
+	if path == "/api/login" {
+		loginKey := ip + ":login"
+		loginV, loginExists := rl.visitors[loginKey]
+		if !loginExists {
+			rl.visitors[loginKey] = &Visitor{time.Now(), 1}
+			return true
+		}
+
+		if time.Since(loginV.lastSeen) > time.Minute {
+			loginV.count = 1
+			loginV.lastSeen = time.Now()
+			return true
+		}
+
+		if loginV.count >= 5 {
+			// Do not penalize global count if login is rate limited
+			globalV.count--
+			return false // Login rate limit exceeded
+		}
+		loginV.count++
+	}
+	
 
 	v, exists := rl.visitors[ip]
 	if !exists {
@@ -109,9 +183,9 @@ func (rl *RateLimiter) Cleanup() {
 	for {
 		time.Sleep(time.Minute)
 		rl.Lock()
-		for ip, v := range rl.visitors {
+		for key, v := range rl.visitors {
 			if time.Since(v.lastSeen) > 5*time.Minute {
-				delete(rl.visitors, ip)
+				delete(rl.visitors, key)
 			}
 		}
 		rl.Unlock()
@@ -221,7 +295,12 @@ func validatePath(requestPath string) (string, error) {
 func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := r.RemoteAddr
-		if !rateLimiter.Allow(ip) {
+		// Strip port if present in RemoteAddr for basic IP
+		if idx := strings.LastIndex(ip, ":"); idx != -1 {
+			ip = ip[:idx]
+		}
+
+		if !rateLimiter.Allow(ip, r.URL.Path) {
 			sendJSON(w, http.StatusTooManyRequests, Response{
 				Success: false,
 				Message: "Rate limit exceeded",
@@ -290,14 +369,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	providedHash := sha256.Sum256([]byte(credentials.Password))
-	
-	if credentials.Username == "admin" && subtle.ConstantTimeCompare(adminPasswordHash[:], providedHash[:]) == 1 {
 
-	expectedHash := sha256.Sum256([]byte("admin"))
-	providedHash := sha256.Sum256([]byte(credentials.Password))
-
-	if credentials.Username == "admin" && subtle.ConstantTimeCompare(expectedHash[:], providedHash[:]) == 1 {
 		session := sessions.Create(credentials.Username)
 
 		http.SetCookie(w, &http.Cookie{
@@ -416,8 +488,41 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
+	
+	// Read first 512 bytes for content type detection
+	buff := make([]byte, 512)
+	_, err = file.Read(buff)
+	if err != nil && err != io.EOF {
+		sendJSON(w, http.StatusInternalServerError, Response{
+			Success: false,
+			Message: "Failed to read file content",
+		})
+		return
+	}
+	// Reset the file pointer back to the beginning
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		sendJSON(w, http.StatusInternalServerError, Response{
+			Success: false,
+			Message: "Failed to seek file",
+		})
+		return
+	}
+
+	contentType := http.DetectContentType(buff)
+	log.Printf("Detected content type: %s for file %s", contentType, handler.Filename)
 
 	filename := filepath.Base(handler.Filename)
+
+	// Basic security: restrict typical executable file extensions as DetectContentType
+	// might just return 'application/octet-stream' for them.
+	ext := strings.ToLower(filepath.Ext(filename))
+	if ext == ".exe" || ext == ".sh" || ext == ".elf" || ext == ".bin" || ext == ".bat" || ext == ".cmd" {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Executable files are not allowed",
+		})
+		return
+	}
 	filename = strings.ReplaceAll(filename, "..", "")
 
 	destDir := r.FormValue("path")
@@ -977,6 +1082,20 @@ func main() {
 	http.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	log.Printf("API Key (for reference): %s\n", apiKey)
+	log.Printf("Using configuration:")
+	log.Printf(" - Port: %s\n", serverPort)
+	log.Printf(" - Admin Username: %s\n", adminUsername)
+	log.Printf(" - Upload Directory: %s\n", uploadDir)
+	if certFile != "" && keyFile != "" {
+		log.Printf("Server starting on https://localhost:%s\n", serverPort)
+		if err := http.ListenAndServeTLS(":"+serverPort, certFile, keyFile, nil); err != nil {
+			log.Fatal(err)
+		}
+	} else {
+		log.Printf("Server starting on http://localhost:%s\n", serverPort)
+		if err := http.ListenAndServe(":"+serverPort, nil); err != nil {
+			log.Fatal(err)
+		}
 	log.Printf("Default credentials: admin / admin\n")
 	log.Println("Server starting on http://localhost:8080")
 
