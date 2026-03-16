@@ -10,7 +10,7 @@ cd server
 
 # Build the application
 echo "Building Go application..."
-go build -o ../filemanager main.go
+go build -o ../filemanager .
 
 if [ $? -eq 0 ]; then
     echo "✓ Build successful!"
