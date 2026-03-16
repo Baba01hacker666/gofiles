@@ -87,8 +87,6 @@ func listFilesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseUploadDir, _ := filepath.Abs(uploadDir)
-
 	files, err := os.ReadDir(cleanPath)
 	if err != nil {
 		log.Printf("listFilesHandler: ReadDir error for path %s - %v", cleanPath, err)
@@ -240,7 +238,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseUploadDir, _ := filepath.Abs(uploadDir)
 	relPath, _ := filepath.Rel(baseUploadDir, destPath)
 
 	sendJSON(w, http.StatusOK, Response{
@@ -413,7 +410,6 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	baseUploadDir, _ := filepath.Abs(uploadDir)
 	relPath, _ := filepath.Rel(baseUploadDir, validatedNewPath)
 
 	sendJSON(w, http.StatusOK, Response{
@@ -464,9 +460,6 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	// Get base upload directory
-	baseUploadDir, _ := filepath.Abs(uploadDir)
 
 	// Determine the parent path where we're creating the folder
 	var parentPath string
@@ -562,15 +555,6 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		zipName += ".zip"
 	}
 
-	baseUploadDir, err := filepath.Abs(uploadDir)
-	if err != nil {
-		sendJSON(w, http.StatusInternalServerError, Response{
-			Success: false,
-			Message: "Server error",
-		})
-		return
-	}
-
 	zipPath := filepath.Join(baseUploadDir, zipName)
 
 	zipFile, err := os.Create(zipPath)
@@ -621,17 +605,7 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 
 	var results []FileInfo
 
-	baseUploadDir, err := filepath.Abs(uploadDir)
-	if err != nil {
-		log.Printf("searchHandler: Abs error - %v", err)
-		sendJSON(w, http.StatusInternalServerError, Response{
-			Success: false,
-			Message: "Server error",
-		})
-		return
-	}
-
-	err = filepath.Walk(baseUploadDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(baseUploadDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
