@@ -16,6 +16,7 @@ const (
 
 var (
 	uploadDir         = "./uploads"
+	baseUploadDir     string
 	serverPort        = "8080"
 	adminUsername     = "admin"
 	adminPasswordHash []byte
@@ -30,6 +31,7 @@ func init() {
 	if u := os.Getenv("UPLOAD_DIR"); u != "" {
 		uploadDir = u
 	}
+	baseUploadDir, _ = filepath.Abs(uploadDir)
 	if u := os.Getenv("ADMIN_USERNAME"); u != "" {
 		adminUsername = u
 	}
@@ -62,9 +64,8 @@ var (
 )
 
 func main() {
-	uploadAbs, _ := filepath.Abs(uploadDir)
-	os.MkdirAll(uploadAbs, 0755)
-	log.Printf("Upload directory: %s", uploadAbs)
+	os.MkdirAll(baseUploadDir, 0755)
+	log.Printf("Upload directory: %s", baseUploadDir)
 
 	go rateLimiter.Cleanup()
 	go sessions.Cleanup()
