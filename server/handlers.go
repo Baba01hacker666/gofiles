@@ -13,6 +13,41 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+func getCsrfTokenHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		sendJSON(w, http.StatusMethodNotAllowed, Response{
+			Success: false,
+			Message: "Method not allowed",
+		})
+		return
+	}
+
+	cookie, err := r.Cookie("session_id")
+	if err != nil {
+		sendJSON(w, http.StatusUnauthorized, Response{
+			Success: false,
+			Message: "Unauthorized",
+		})
+		return
+	}
+
+	session, exists := sessions.Get(cookie.Value)
+	if !exists {
+		sendJSON(w, http.StatusUnauthorized, Response{
+			Success: false,
+			Message: "Invalid session",
+		})
+		return
+	}
+
+	sendJSON(w, http.StatusOK, Response{
+		Success: true,
+		Data: map[string]string{
+			"csrf_token": session.CSRFToken,
+		},
+	})
+}
+
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
