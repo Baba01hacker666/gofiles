@@ -69,11 +69,11 @@ async function handleLogin(e) {
             showToast('Login successful', 'success');
         } else {
             errorEl.textContent = data.message;
-            errorEl.classList.add('show');
+            errorEl.classList.add('error-message-show');
         }
     } catch (error) {
         errorEl.textContent = 'Connection error';
-        errorEl.classList.add('show');
+        errorEl.classList.add('error-message-show');
     }
 }
 
@@ -237,10 +237,10 @@ function handleFileSelection(e) {
     
     if (e.target.checked) {
         selectedFiles.add(path);
-        row.classList.add('selected');
+        row.classList.add('selected-row');
     } else {
         selectedFiles.delete(path);
-        row.classList.remove('selected');
+        row.classList.remove('selected-row');
     }
     
     updateActionButtons();
@@ -263,26 +263,26 @@ function updateActionButtons() {
 
 // Upload
 function openUploadModal() {
-    document.getElementById('uploadModal').classList.add('show');
+    document.getElementById('uploadModal').classList.add('flex-modal');
 }
 
 function closeUploadModal() {
-    document.getElementById('uploadModal').classList.remove('show');
+    document.getElementById('uploadModal').classList.remove('flex-modal');
     document.getElementById('uploadList').innerHTML = '';
 }
 
 function handleDragOver(e) {
     e.preventDefault();
-    e.currentTarget.classList.add('drag-over');
+    e.currentTarget.classList.add('drag-over-area');
 }
 
 function handleDragLeave(e) {
-    e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-area');
 }
 
 function handleDrop(e) {
     e.preventDefault();
-    e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.classList.remove('drag-over-area');
     
     const files = Array.from(e.dataTransfer.files);
     uploadFiles(files);
@@ -407,11 +407,11 @@ function handleRename(path) {
     renameTarget = path;
     const filename = path.split('/').pop();
     document.getElementById('renameInput').value = filename;
-    document.getElementById('renameModal').classList.add('show');
+    document.getElementById('renameModal').classList.add('flex-modal');
 }
 
 function closeRenameModal() {
-    document.getElementById('renameModal').classList.remove('show');
+    document.getElementById('renameModal').classList.remove('flex-modal');
     renameTarget = null;
 }
 
@@ -450,11 +450,11 @@ async function confirmRename() {
 // New Folder
 function openNewFolderModal() {
     document.getElementById('folderNameInput').value = '';
-    document.getElementById('newFolderModal').classList.add('show');
+    document.getElementById('newFolderModal').classList.add('flex-modal');
 }
 
 function closeNewFolderModal() {
-    document.getElementById('newFolderModal').classList.remove('show');
+    document.getElementById('newFolderModal').classList.remove('flex-modal');
 }
 
 // FIXED: confirmNewFolder - sends clean relative path

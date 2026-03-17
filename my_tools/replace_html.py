@@ -1,77 +1,42 @@
-<!DOCTYPE html>
+import re
+
+def main():
+    # Read the content of the downloaded files
+    with open('new_login.html', 'r') as f: login_html = f.read()
+    with open('new_main.html', 'r') as f: main_html = f.read()
+    with open('new_upload.html', 'r') as f: upload_html = f.read()
+    with open('new_rename.html', 'r') as f: rename_html = f.read()
+    with open('new_folder.html', 'r') as f: folder_html = f.read()
+    with open('new_heatmap.html', 'r') as f: heatmap_html = f.read()
+
+    # Extract the <head> portion, including Tailwind config and styles, from login_html
+    head_match = re.search(r'<head>(.*?)</head>', login_html, re.DOTALL)
+    head_content = head_match.group(1) if head_match else ""
+
+    # Add any extra styles from main_html
+    main_styles = re.findall(r'<style>(.*?)</style>', main_html, re.DOTALL)
+    for style in main_styles:
+        if style not in head_content:
+            head_content += f"\n<style>{style}</style>\n"
+
+    # Define the final HTML structure
+    final_html = f"""<!DOCTYPE html>
 <html class="dark" lang="en">
 <head>
-
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
-                        "primary": "#22c55e",
-                        "background-light": "#101622",
-                        "background-dark": "#0a0a0a",
-                    },
-                    fontFamily: {
-                        "display": ["Space Grotesk", "monospace"]
-                    },
-                    borderRadius: {
-                        "DEFAULT": "0px",
-                        "lg": "0px",
-                        "xl": "0px",
-                        "full": "0px"
-                    },
-                },
-            },
-        }
-    </script>
-<style>.crt-overlay {
-    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-    background-size: 100% 3px, 3px 100%;
-    pointer-events: none
-    }
-.noise {
-    background-image: url(https://lh3.googleusercontent.com/aida-public/AB6AXuCpbRDv1NbtYQZDa2W7l-jI8rK3vTlo2HB-kmkz76pJabAtKKWvEJpUAm_AILbR2ah0yrbGnsMOr6x6J5G0AEFADMKQ0mqUt--brLNVbj6FSfp23gIWGBkn2n4sOdpsQwQRLxCk7a1uznpKneX03mtUEI9cSU3AbIaCCkF-5aX_3VZ-kxtbk-stt8XEDBCBTyFb-VfgOEXqxbDbfN4M7RIgdeE2NiFgRAP0e7VOD4zx-WjwTr-w67NppRL-O-ok5V1Yrj10-JLkSDk);
-    opacity: 0.05
-    }</style>
-<style>
-    body {
-      min-height: max(884px, 100dvh);
-    }
-  </style>
-
-<style>
-        .mono-condensed {
-            font-family: 'Space Grotesk', monospace;
-            letter-spacing: -0.05em;
-        }
-        .brutalist-border {
-            border: 2px solid #2d3748;
-        }
-        .brutalist-border-b {
-            border-bottom: 2px solid #2d3748;
-        }
-    </style>
-
+{head_content}
 <title>Secure File Manager</title>
 <style>
 /* Utilities for JS toggles */
-.hidden-modal { display: none !important; }
-.flex-modal { display: flex !important; }
-.selected-row { background-color: rgba(34, 197, 94, 0.1) !important; border-left: 2px solid #22c55e !important; }
-.drag-over-area { border-color: #22c55e !important; background-color: rgba(34, 197, 94, 0.05) !important; }
-.error-message-show { display: block !important; animation: blink 0.5s step-end infinite alternate; }
+.hidden-modal {{ display: none !important; }}
+.flex-modal {{ display: flex !important; }}
+.selected-row {{ background-color: rgba(34, 197, 94, 0.1) !important; border-left: 2px solid #22c55e !important; }}
+.drag-over-area {{ border-color: #22c55e !important; background-color: rgba(34, 197, 94, 0.05) !important; }}
+.error-message-show {{ display: block !important; animation: blink 0.5s step-end infinite alternate; }}
 
-@keyframes blink { 50% { opacity: 0.8; } }
+@keyframes blink {{ 50% {{ opacity: 0.8; }} }}
 
 /* Toasts */
-.toast-container {
+.toast-container {{
     position: fixed;
     bottom: 2rem;
     right: 2rem;
@@ -79,9 +44,9 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
-}
+}}
 
-.toast {
+.toast {{
     background: #0a0a0a;
     border: 1px solid #404040;
     padding: 1rem 1.5rem;
@@ -92,25 +57,25 @@
     box-shadow: 4px 4px 0px #050505, 4px 4px 0px 1px #404040;
     animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     color: #F5F5F5;
-}
+}}
 
-@keyframes slideUp {
-    from { transform: translateY(100%); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
+@keyframes slideUp {{
+    from {{ transform: translateY(100%); opacity: 0; }}
+    to {{ transform: translateY(0); opacity: 1; }}
+}}
 
-.toast.success { border-left: 4px solid #22c55e; }
-.toast.error { border-left: 4px solid #ef4444; }
-.toast.warning { border-left: 4px solid #eab308; }
+.toast.success {{ border-left: 4px solid #22c55e; }}
+.toast.error {{ border-left: 4px solid #ef4444; }}
+.toast.warning {{ border-left: 4px solid #eab308; }}
 
-.toast-icon {
+.toast-icon {{
     font-family: var(--font-display);
     font-size: 1.5rem;
-}
+}}
 
-.toast-message {
+.toast-message {{
     font-size: 0.9rem;
-}
+}}
 </style>
 </head>
 <body class="bg-background-dark font-display antialiased selection:bg-primary selection:text-background-dark overflow-x-hidden text-slate-100">
@@ -339,4 +304,10 @@
 
 <script src="/static/js/app.js"></script>
 </body>
-</html>
+</html>"""
+
+    with open('static/index.html', 'w') as f:
+        f.write(final_html)
+
+if __name__ == "__main__":
+    main()
