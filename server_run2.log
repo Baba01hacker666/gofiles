@@ -1,0 +1,10 @@
+2026/03/17 03:53:09 Upload directory: /app/uploads
+2026/03/17 03:53:09 API Key (for reference): hldgv0PEUZL6975t8l8h8mFYbA0iaWBYCD4z6Kk9CVs=
+2026/03/17 03:53:09 Using configuration:
+2026/03/17 03:53:09  - Port: 8080
+2026/03/17 03:53:09  - Admin Username: admin
+2026/03/17 03:53:09  - Upload Directory: ./uploads
+2026/03/17 03:53:09 Server starting on http://localhost:8080
+2026/03/17 04:05:50 createDirHandler: Path=, Name=test_csrf_folder
+2026/03/17 04:05:50 createDirHandler: Full path to create: /app/uploads/test_csrf_folder
+2026/03/17 04:05:50 createDirHandler: Created directory. Absolute: /app/uploads/test_csrf_folder, Relative: test_csrf_folder

@@ -84,19 +84,35 @@ function handleLogout() {
     currentPath = './uploads';
 }
 
-function checkSession() {
+async function checkSession() {
     // Check if session cookie exists
     const cookies = document.cookie.split(';');
     const hasSession = cookies.some(c => c.trim().startsWith('session_id='));
     
     if (hasSession) {
-        // Try to load files to verify session
-        loadFiles(currentPath).then(success => {
-            if (success) {
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('mainApp').style.display = 'flex';
+        try {
+            // First, retrieve the CSRF token
+            const csrfResponse = await fetch('/api/csrf');
+            const csrfData = await csrfResponse.json();
+
+            if (csrfData.success) {
+                csrfToken = csrfData.data.csrf_token;
+
+                // Then try to load files to verify session
+                const success = await loadFiles(currentPath);
+                if (success) {
+                    document.getElementById('loginScreen').style.display = 'none';
+                    document.getElementById('mainApp').style.display = 'flex';
+                } else {
+                    handleLogout();
+                }
+            } else {
+                handleLogout();
             }
-        });
+        } catch (error) {
+            console.error('Session check failed:', error);
+            handleLogout();
+        }
     }
 }
 
@@ -308,6 +324,9 @@ async function uploadFiles(files) {
         try {
             const response = await fetch('/api/upload', {
                 method: 'POST',
+                headers: {
+                    'X-CSRF-Token': csrfToken
+                },
                 body: formData
             });
             
@@ -384,7 +403,10 @@ async function handleDelete() {
     for (const path of selectedFiles) {
         try {
             const response = await fetch(`/api/delete?path=${encodeURIComponent(path)}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: {
+                    'X-CSRF-Token': csrfToken
+                }
             });
             
             const data = await response.json();
@@ -426,7 +448,10 @@ async function confirmRename() {
     try {
         const response = await fetch('/api/rename', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({
                 oldPath: renameTarget,
                 newName: newName
@@ -485,7 +510,10 @@ async function confirmNewFolder() {
     try {
         const response = await fetch('/api/mkdir', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({
                 path: cleanPath,  // Send clean relative path
                 name: name
@@ -518,7 +546,10 @@ async function handleZip() {
     try {
         const response = await fetch('/api/zip', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
+            },
             body: JSON.stringify({
                 paths: Array.from(selectedFiles),
                 name: zipName

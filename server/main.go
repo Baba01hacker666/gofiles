@@ -74,6 +74,7 @@ func main() {
 		http.ServeFile(w, r, filepath.Join(staticDir, "index.html"))
 	}))
 
+	http.HandleFunc("/api/csrf", securityHeadersMiddleware(rateLimitMiddleware(getCsrfTokenHandler)))
 	http.HandleFunc("/api/login", securityHeadersMiddleware(rateLimitMiddleware(loginHandler)))
 	http.HandleFunc("/api/files", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(listFilesHandler))))
 	http.HandleFunc("/api/upload", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(uploadHandler))))

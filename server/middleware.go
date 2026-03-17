@@ -36,13 +36,25 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		_, exists := sessions.Get(cookie.Value)
+		session, exists := sessions.Get(cookie.Value)
 		if !exists {
 			sendJSON(w, http.StatusUnauthorized, Response{
 				Success: false,
 				Message: "Invalid session",
 			})
 			return
+		}
+
+		// CSRF Token Validation for state-changing requests
+		if r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut || r.Method == http.MethodPatch {
+			csrfToken := r.Header.Get("X-CSRF-Token")
+			if csrfToken == "" || csrfToken != session.CSRFToken {
+				sendJSON(w, http.StatusForbidden, Response{
+					Success: false,
+					Message: "Invalid CSRF token",
+				})
+				return
+			}
 		}
 
 		next(w, r)
