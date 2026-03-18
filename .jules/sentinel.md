@@ -1,0 +1,4 @@
+## 2024-05-24 - [Fix DOM-based XSS in Frontend escapeHtml]
+**Vulnerability:** The custom `escapeHtml` function in `static/js/app.js` relied on DOM `textContent` assignment (`div.textContent = text; return div.innerHTML`), which escapes `<` and `>` but fails to escape single (`'`) and double (`"`) quotes. Because the output was used directly in HTML attributes (e.g., `onclick="handleRename('${escapeHtml(file.path)}')"`), attackers could craft filenames with quotes to break out of attributes and execute arbitrary JavaScript.
+**Learning:** DOM-based text escaping is insufficient for rendering user input inside HTML attributes. While safe for inner text content, it leaves attributes vulnerable to injection.
+**Prevention:** Always use regex-based string replacement to explicitly escape all five critical HTML characters (`&`, `<`, `>`, `"`, `'`) when placing untrusted input into HTML contexts, particularly attributes.
