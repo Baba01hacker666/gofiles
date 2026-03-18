@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "primary": "#0052cc", // Deep blue enterprise accent
+                "background-light": "#ffffff",
+                "surface": "#f4f5f7",
+              },
+              fontFamily: {
+                "display": ["Inter", "sans-serif"]
+              },
+              borderRadius: {"DEFAULT": "0.375rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+            },
+          },
+        }
+      </script>
+<title>Enterprise File Manager</title>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .fill-icon {
+            font-variation-settings: 'FILL' 1;
+        }
+    </style>
+</head>
+<body class="bg-white font-display text-slate-700 min-h-screen flex flex-col">
+<!-- Header -->
+<header class="sticky top-0 z-30 w-full border-b border-slate-200 bg-white px-4 py-2.5">
+<div class="max-w-7xl mx-auto flex items-center justify-between gap-4">
+<div class="flex items-center gap-2 shrink-0">
+<div class="bg-primary p-1.5 rounded text-white flex items-center justify-center">
+<span class="material-symbols-outlined font-bold text-lg">folder_managed</span>
+</div>
+<h1 class="text-lg font-bold tracking-tight text-slate-900 hidden sm:block">CloudDrive</h1>
+</div>
+<div class="flex-1 max-w-2xl">
+<label class="relative block">
+<span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+<span class="material-symbols-outlined text-xl">search</span>
+</span>
+<input class="block w-full rounded border border-slate-200 bg-slate-50 py-2 pl-10 pr-3 text-sm placeholder:text-slate-500 focus:ring-2 focus:ring-primary/20 focus:border-primary focus:outline-none transition-all" placeholder="Search files and folders..." type="text"/>
+</label>
+</div>
+<div class="flex items-center gap-2">
+<button class="hidden md:flex items-center p-2 text-slate-500 hover:bg-slate-100 rounded transition-colors">
+<span class="material-symbols-outlined text-2xl">notifications</span>
+</button>
+<div class="h-6 w-[1px] bg-slate-200 hidden md:block mx-1"></div>
+<button class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">account_circle</span>
+<span class="hidden lg:inline">Admin User</span>
+</button>
+</div>
+</div>
+</header>
+<!-- Toolbar -->
+<div class="w-full bg-white border-b border-slate-200 px-4 py-2 shadow-sm">
+<div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+<div class="flex items-center gap-1">
+<button class="flex items-center gap-2 bg-primary text-white px-4 py-1.5 rounded font-semibold text-sm hover:bg-primary/90 transition-colors shadow-sm">
+<span class="material-symbols-outlined text-lg">upload</span>
+<span>Upload</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-100 rounded transition-colors" title="New Folder">
+<span class="material-symbols-outlined">create_new_folder</span>
+</button>
+<div class="w-[1px] h-6 bg-slate-200 mx-1"></div>
+<button class="p-2 text-slate-600 hover:bg-slate-100 rounded transition-colors" title="Refresh">
+<span class="material-symbols-outlined">refresh</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-100 rounded transition-colors" title="Download">
+<span class="material-symbols-outlined">download</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-100 rounded transition-colors" title="Zip Archive">
+<span class="material-symbols-outlined">folder_zip</span>
+</button>
+<button class="p-2 text-red-600 hover:bg-red-50 rounded transition-colors" title="Delete">
+<span class="material-symbols-outlined">delete</span>
+</button>
+</div>
+<div class="flex items-center gap-1 border border-slate-200 rounded p-0.5">
+<button class="p-1.5 text-slate-500 hover:bg-slate-100 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">grid_view</span>
+</button>
+<button class="p-1.5 text-primary bg-primary/10 rounded transition-colors">
+<span class="material-symbols-outlined text-xl">view_list</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Main Content Area -->
+<main class="flex-1 max-w-7xl w-full mx-auto p-4 flex flex-col gap-4">
+<!-- Breadcrumbs -->
+<nav class="flex items-center gap-2 text-sm text-slate-500">
+<a class="hover:text-primary transition-colors flex items-center" href="#">
+<span class="material-symbols-outlined text-lg">home</span>
+</a>
+<span class="material-symbols-outlined text-base text-slate-300">chevron_right</span>
+<a class="hover:text-primary transition-colors" href="#">Documents</a>
+<span class="material-symbols-outlined text-base text-slate-300">chevron_right</span>
+<a class="font-semibold text-slate-900" href="#">Project_Alpha</a>
+</nav>
+<!-- File Table -->
+<div class="flex-1 bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col shadow-sm">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
+<th class="px-6 py-3 w-10">
+<input class="rounded border-slate-300 text-primary focus:ring-primary/20" type="checkbox"/>
+</th>
+<th class="px-6 py-3">Name</th>
+<th class="px-6 py-3 hidden md:table-cell">Size</th>
+<th class="px-6 py-3 hidden sm:table-cell">Date Modified</th>
+<th class="px-6 py-3 hidden lg:table-cell">Permissions</th>
+<th class="px-6 py-3 text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-slate-100">
+<!-- Row 1: Folder -->
+<tr class="hover:bg-blue-50/30 transition-colors group">
+<td class="px-6 py-3">
+<input class="rounded border-slate-300 text-primary focus:ring-primary/20" type="checkbox"/>
+</td>
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-yellow-500 fill-icon">folder</span>
+<span class="font-medium text-slate-900 cursor-pointer hover:text-primary hover:underline">Assets_Marketing</span>
+</div>
+</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden md:table-cell">--</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden sm:table-cell">Oct 24, 2023, 10:45 AM</td>
+<td class="px-6 py-3 hidden lg:table-cell">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">drwxr-xr-x</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Image File -->
+<tr class="hover:bg-blue-50/30 transition-colors group">
+<td class="px-6 py-3">
+<input class="rounded border-slate-300 text-primary focus:ring-primary/20" type="checkbox"/>
+</td>
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-500">image</span>
+<span class="font-medium text-slate-900 cursor-pointer hover:text-primary hover:underline">hero_banner_v1.png</span>
+</div>
+</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden md:table-cell">2.4 MB</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden sm:table-cell">Oct 22, 2023, 03:12 PM</td>
+<td class="px-6 py-3 hidden lg:table-cell">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">-rw-r--r--</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: PDF File -->
+<tr class="hover:bg-blue-50/30 transition-colors group">
+<td class="px-6 py-3">
+<input class="rounded border-slate-300 text-primary focus:ring-primary/20" type="checkbox"/>
+</td>
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-red-500">picture_as_pdf</span>
+<span class="font-medium text-slate-900 cursor-pointer hover:text-primary hover:underline">project_requirements.pdf</span>
+</div>
+</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden md:table-cell">842 KB</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden sm:table-cell">Oct 21, 2023, 09:00 AM</td>
+<td class="px-6 py-3 hidden lg:table-cell">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">-rw-r--r--</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: Spreadsheet -->
+<tr class="hover:bg-blue-50/30 transition-colors group">
+<td class="px-6 py-3">
+<input class="rounded border-slate-300 text-primary focus:ring-primary/20" type="checkbox"/>
+</td>
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-green-600">table_chart</span>
+<span class="font-medium text-slate-900 cursor-pointer hover:text-primary hover:underline">budget_planning_2024.xlsx</span>
+</div>
+</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden md:table-cell">1.1 MB</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden sm:table-cell">Oct 19, 2023, 11:20 AM</td>
+<td class="px-6 py-3 hidden lg:table-cell">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">-rw-rw-r--</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+<!-- Row 5: Zip -->
+<tr class="hover:bg-blue-50/30 transition-colors group">
+<td class="px-6 py-3">
+<input class="rounded border-slate-300 text-primary focus:ring-primary/20" type="checkbox"/>
+</td>
+<td class="px-6 py-3">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-slate-500">folder_zip</span>
+<span class="font-medium text-slate-900 cursor-pointer hover:text-primary hover:underline">archive_old_versions.zip</span>
+</div>
+</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden md:table-cell">45.8 MB</td>
+<td class="px-6 py-3 text-sm text-slate-500 hidden sm:table-cell">Oct 15, 2023, 05:55 PM</td>
+<td class="px-6 py-3 hidden lg:table-cell">
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">-rw-r--r--</span>
+</td>
+<td class="px-6 py-3 text-right">
+<button class="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400">
+<span class="material-symbols-outlined">more_horiz</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Empty Space Fill -->
+<div class="flex-1 bg-slate-50/50 min-h-[200px]"></div>
+</div>
+</main>
+<!-- Footer Status Bar -->
+<footer class="w-full bg-slate-50 border-t border-slate-200 px-4 py-2 text-[11px] text-slate-500">
+<div class="max-w-7xl mx-auto flex items-center justify-between">
+<div class="flex items-center gap-4">
+<span class="flex items-center gap-1.5 font-medium">
+<span class="size-2 rounded-full bg-green-500"></span>
+                Connection: Secure
+            </span>
+<span class="h-3 w-[1px] bg-slate-300"></span>
+<span>5 items selected</span>
+<span class="h-3 w-[1px] bg-slate-300"></span>
+<span>Total Size: 52.4 MB</span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">cloud_done</span>
+<span>All changes synced</span>
+</div>
+<span>Build v2.4.0-stable</span>
+</div>
+</div>
+</footer>
+<!-- Bottom Mobile Nav -->
+<div class="md:hidden sticky bottom-0 border-t border-slate-200 bg-white px-4 pb-6 pt-2 flex justify-around">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined fill-icon">folder</span>
+<p class="text-[10px] font-bold uppercase tracking-wider">Files</p>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">history</span>
+<p class="text-[10px] font-bold uppercase tracking-wider">Recent</p>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">group</span>
+<p class="text-[10px] font-bold uppercase tracking-wider">Shared</p>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-400" href="#">
+<span class="material-symbols-outlined">settings</span>
+<p class="text-[10px] font-bold uppercase tracking-wider">Settings</p>
+</a>
+</div>
+</body></html>

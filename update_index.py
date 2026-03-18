@@ -1,4 +1,20 @@
-<!DOCTYPE html>
+import re
+
+def process_html():
+    with open('screens/login.html', 'r') as f:
+        login_html = f.read()
+
+    with open('screens/main.html', 'r') as f:
+        main_html = f.read()
+
+    with open('screens/modals.html', 'r') as f:
+        modals_html = f.read()
+
+    # Define our custom HTML structure based on the clean design.
+    # We map IDs onto the structural elements provided by the Stitch generation
+    # so that our `app.js` can continue to operate them.
+
+    final_html = f"""<!DOCTYPE html>
 <html class="light" lang="en">
 <head>
     <meta charset="utf-8"/>
@@ -8,45 +24,45 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&display=swap" rel="stylesheet"/>
 
     <script id="tailwind-config">
-        tailwind.config = {
+        tailwind.config = {{
             darkMode: "class",
-            theme: {
-                extend: {
-                    colors: {
+            theme: {{
+                extend: {{
+                    colors: {{
                         "primary": "#0052cc",
                         "background-light": "#ffffff",
                         "surface": "#f4f5f7",
-                    },
-                    fontFamily: {
+                    }},
+                    fontFamily: {{
                         "display": ["Inter", "sans-serif"]
-                    },
-                    borderRadius: {"DEFAULT": "0.375rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
-                },
-            },
-        }
+                    }},
+                    borderRadius: {{"DEFAULT": "0.375rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"}},
+                }},
+            }},
+        }}
     </script>
     <title>Secure File Manager</title>
     <style>
-        body {
+        body {{
             min-height: max(884px, 100dvh);
             -webkit-font-smoothing: antialiased;
-        }
-        .material-symbols-outlined {
+        }}
+        .material-symbols-outlined {{
             font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-        }
-        .fill-icon {
+        }}
+        .fill-icon {{
             font-variation-settings: 'FILL' 1;
-        }
+        }}
 
         /* JS Toggle utilities */
-        .hidden-modal { display: none !important; }
-        .flex-modal { display: flex !important; }
-        .selected-row { background-color: #f0f7ff !important; border-left: 3px solid #0052cc !important; }
-        .drag-over-area { border-color: #0052cc !important; background-color: #f0f7ff !important; }
-        .error-message-show { display: block !important; }
+        .hidden-modal {{ display: none !important; }}
+        .flex-modal {{ display: flex !important; }}
+        .selected-row {{ background-color: #f0f7ff !important; border-left: 3px solid #0052cc !important; }}
+        .drag-over-area {{ border-color: #0052cc !important; background-color: #f0f7ff !important; }}
+        .error-message-show {{ display: block !important; }}
 
         /* Toasts */
-        .toast-container {
+        .toast-container {{
             position: fixed;
             bottom: 2rem;
             right: 2rem;
@@ -54,9 +70,9 @@
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
-        }
+        }}
 
-        .toast {
+        .toast {{
             background: #ffffff;
             border: 1px solid #e2e8f0;
             padding: 1rem 1.5rem;
@@ -69,25 +85,25 @@
             animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
             color: #334155;
             font-weight: 500;
-        }
+        }}
 
-        @keyframes slideUp {
-            from { transform: translateY(100%); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
+        @keyframes slideUp {{
+            from {{ transform: translateY(100%); opacity: 0; }}
+            to {{ transform: translateY(0); opacity: 1; }}
+        }}
 
-        .toast.success { border-left: 4px solid #22c55e; }
-        .toast.error { border-left: 4px solid #ef4444; }
-        .toast.warning { border-left: 4px solid #eab308; }
+        .toast.success {{ border-left: 4px solid #22c55e; }}
+        .toast.error {{ border-left: 4px solid #ef4444; }}
+        .toast.warning {{ border-left: 4px solid #eab308; }}
 
-        .toast-icon {
+        .toast-icon {{
             font-family: var(--font-display);
             font-size: 1.5rem;
-        }
+        }}
 
-        .toast-message {
+        .toast-message {{
             font-size: 0.9rem;
-        }
+        }}
     </style>
 </head>
 <body class="bg-background-light font-display min-h-screen text-slate-800 flex items-center justify-center p-0 m-0">
@@ -340,3 +356,10 @@
 <script src="/static/js/app.js"></script>
 </body>
 </html>
+"""
+
+    with open('static/index.html', 'w') as f:
+        f.write(final_html)
+
+if __name__ == "__main__":
+    process_html()

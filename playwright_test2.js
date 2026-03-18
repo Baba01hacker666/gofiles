@@ -1,13 +1,14 @@
 const { chromium } = require('playwright');
 
 (async () => {
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  const page = await context.newPage();
 
   // Navigate to login
   await page.goto('http://localhost:8080');
   await page.waitForTimeout(2000); // give it a moment to render
-  await page.screenshot({ path: 'login_screen.png' });
+  await page.screenshot({ path: 'login_screen_new_white.png' });
   console.log('Login screen captured.');
 
   // Attempt login
@@ -16,7 +17,7 @@ const { chromium } = require('playwright');
   await page.click('button[type="submit"]');
 
   await page.waitForTimeout(2000); // give it a moment to load main app
-  await page.screenshot({ path: 'main_app.png' });
+  await page.screenshot({ path: 'main_app_new_white.png' });
   console.log('Main app captured.');
 
   await browser.close();

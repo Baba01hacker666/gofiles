@@ -1,6 +1,6 @@
 import re
 
-def main():
+def process_js():
     with open('static/js/app.js', 'r') as f:
         js = f.read()
 
@@ -8,8 +8,6 @@ def main():
     js = js.replace("classList.add('show')", "classList.add('flex-modal')")
     js = js.replace("classList.remove('show')", "classList.remove('flex-modal')")
 
-    # Specific adjustment for error message which uses block instead of flex
-    # Actually wait, loginError needs 'error-message-show'
     js = js.replace("errorEl.classList.add('flex-modal')", "errorEl.classList.add('error-message-show')")
     js = js.replace("errorEl.classList.remove('flex-modal')", "errorEl.classList.remove('error-message-show')")
 
@@ -23,4 +21,4 @@ def main():
         f.write(js)
 
 if __name__ == "__main__":
-    main()
+    process_js()

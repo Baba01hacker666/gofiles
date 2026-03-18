@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#0047AB", // Deep Blue Accent
+                        "background-light": "#ffffff",
+                        "slate-custom": "#f8fafc",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.5rem", "lg": "0.75rem", "xl": "1rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<title>FileCloud Login</title>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-background-light font-display min-h-screen flex items-center justify-center p-4">
+<div class="w-full max-w-[440px] bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+<!-- Header Section -->
+<div class="pt-12 pb-8 px-10 text-center">
+<div class="flex justify-center mb-6">
+<div class="size-14 bg-primary rounded-lg flex items-center justify-center text-white shadow-md">
+<span class="material-symbols-outlined text-3xl font-medium">folder_shared</span>
+</div>
+</div>
+<h1 class="text-slate-900 text-2xl font-bold tracking-tight mb-2">Welcome Back</h1>
+<p class="text-slate-500 text-sm">Login to manage your files securely</p>
+</div>
+<!-- Form Section -->
+<div class="px-10 pb-12">
+<form action="#" class="space-y-6">
+<!-- Username Field -->
+<div class="flex flex-col gap-1.5">
+<label class="text-slate-700 text-xs font-bold uppercase tracking-wider ml-1">Username or Email</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">person</span>
+<input class="w-full pl-11 pr-4 py-3.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400" placeholder="Enter your username" type="text"/>
+</div>
+</div>
+<!-- Password Field -->
+<div class="flex flex-col gap-1.5">
+<div class="flex justify-between items-center ml-1">
+<label class="text-slate-700 text-xs font-bold uppercase tracking-wider">Password</label>
+<a class="text-primary hover:underline text-xs font-semibold transition-colors" href="#">Forgot Password?</a>
+</div>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">lock</span>
+<input class="w-full pl-11 pr-12 py-3.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-slate-400" placeholder="Enter your password" type="password"/>
+<button class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors" type="button">
+<span class="material-symbols-outlined text-xl">visibility</span>
+</button>
+</div>
+</div>
+<!-- Remember Me -->
+<div class="flex items-center gap-2 ml-1">
+<input class="size-4 rounded border-slate-300 text-primary focus:ring-primary bg-slate-50" id="remember" type="checkbox"/>
+<label class="text-sm text-slate-600" for="remember">Remember this device</label>
+</div>
+<!-- Sign In Button -->
+<button class="w-full bg-primary hover:bg-primary/95 text-white font-semibold py-3.5 rounded-lg transition-all shadow-md active:scale-[0.99] flex items-center justify-center gap-2" type="submit">
+<span>Sign In</span>
+<span class="material-symbols-outlined text-lg">login</span>
+</button>
+</form>
+<!-- SSO Options -->
+<div class="mt-10 relative">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-slate-100"></div>
+</div>
+<div class="relative flex justify-center text-[10px] uppercase tracking-widest">
+<span class="bg-white px-3 text-slate-400 font-bold">Or continue with</span>
+</div>
+</div>
+<div class="mt-6 grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-2 py-3 px-4 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
+<img alt="Google" class="size-4" data-alt="Google colorful brand icon logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDzQmw7Ug1y1WNaKRfLWROBH3tJl8eM-ajntdliv9QSwjCqoOY4GUOGBvVAXwJOpRtIbeLzy_7WbHcX-Erz2p7w9P7fKbFglhPqO5ZpkXJ2nnxtpQd22FPkbKF6xseja9vgEU3QRPk2DuXrTDVcwRVIRrmd4uRDcKLeAfKntxdP4AKJcRnsi5nOPoDE9GGxWN1zoRJfxQEr1Hz_HeKvDighBjtNu1qOJHitfpXqpva2IuSM29j9X-06M4eTuZBT9Cxu9B-iw__8G7Im"/>
+<span class="text-xs font-semibold">Google</span>
+</button>
+<button class="flex items-center justify-center gap-2 py-3 px-4 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors">
+<span class="material-symbols-outlined text-lg">cloud</span>
+<span class="text-xs font-semibold">SSO</span>
+</button>
+</div>
+<p class="mt-10 text-center text-sm text-slate-500">
+                Don't have an account?
+                <a class="text-primary font-bold hover:underline" href="#">Create Account</a>
+</p>
+</div>
+</div>
+<!-- Minimal Background Decoration -->
+<div class="fixed -z-10 top-0 left-0 w-full h-full overflow-hidden opacity-5 pointer-events-none">
+<div class="absolute top-0 right-0 w-[50%] h-[50%] bg-primary/20 blur-[150px]"></div>
+<div class="absolute bottom-0 left-0 w-[50%] h-[50%] bg-primary/10 blur-[150px]"></div>
+</div>
+</body></html>

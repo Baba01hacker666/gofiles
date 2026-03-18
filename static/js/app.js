@@ -63,8 +63,8 @@ async function handleLogin(e) {
         
         if (data.success) {
             csrfToken = data.data.csrf_token;
-            document.getElementById('loginScreen').style.display = 'none';
-            document.getElementById('mainApp').style.display = 'flex';
+            document.getElementById('loginScreen').classList.add('hidden-modal');
+            document.getElementById('mainApp').classList.remove('hidden-modal'); document.getElementById('mainApp').classList.add('flex-modal');
             loadFiles(currentPath);
             showToast('Login successful', 'success');
         } else {
@@ -78,8 +78,8 @@ async function handleLogin(e) {
 }
 
 function handleLogout() {
-    document.getElementById('loginScreen').style.display = 'flex';
-    document.getElementById('mainApp').style.display = 'none';
+    document.getElementById('loginScreen').classList.remove('hidden-modal');
+    document.getElementById('mainApp').classList.remove('flex-modal'); document.getElementById('mainApp').classList.add('hidden-modal');
     selectedFiles.clear();
     currentPath = './uploads';
 }
@@ -93,8 +93,8 @@ function checkSession() {
         // Try to load files to verify session
         loadFiles(currentPath).then(success => {
             if (success) {
-                document.getElementById('loginScreen').style.display = 'none';
-                document.getElementById('mainApp').style.display = 'flex';
+                document.getElementById('loginScreen').classList.add('hidden-modal');
+                document.getElementById('mainApp').classList.remove('hidden-modal'); document.getElementById('mainApp').classList.add('flex-modal');
             }
         });
     }
