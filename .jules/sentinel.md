@@ -1,0 +1,4 @@
+## 2024-03-19 - [Fix Timing Attack in CSRF Validation]
+**Vulnerability:** CSRF tokens were compared using standard string equality (`!=`), which is susceptible to timing attacks. An attacker could measure the time it takes for the server to reject an invalid token and infer the valid token character by character.
+**Learning:** Even generated secure tokens are vulnerable if the comparison method is not constant-time. Normal string comparisons short-circuit as soon as a mismatch is found, revealing information about the token's length and prefix.
+**Prevention:** Always use `subtle.ConstantTimeCompare([]byte(given), []byte(expected)) == 1` when comparing sensitive tokens, secrets, or passwords instead of regular operators like `==` and `!=`.
