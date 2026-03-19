@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strings"
 )
@@ -48,7 +49,8 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// CSRF Token Validation for state-changing requests
 		if r.Method == http.MethodPost || r.Method == http.MethodDelete || r.Method == http.MethodPut || r.Method == http.MethodPatch {
 			csrfToken := r.Header.Get("X-CSRF-Token")
-			if csrfToken == "" || csrfToken != session.CSRFToken {
+			// 🛡️ Sentinel: Use constant-time comparison to prevent timing attacks when comparing sensitive tokens
+			if csrfToken == "" || subtle.ConstantTimeCompare([]byte(csrfToken), []byte(session.CSRFToken)) != 1 {
 				sendJSON(w, http.StatusForbidden, Response{
 					Success: false,
 					Message: "Invalid CSRF token",
