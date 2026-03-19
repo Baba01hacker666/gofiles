@@ -85,34 +85,28 @@ function handleLogout() {
 }
 
 async function checkSession() {
-    // Check if session cookie exists
-    const cookies = document.cookie.split(';');
-    const hasSession = cookies.some(c => c.trim().startsWith('session_id='));
-    
-    if (hasSession) {
-        try {
-            // First, retrieve the CSRF token
-            const csrfResponse = await fetch('/api/csrf');
-            const csrfData = await csrfResponse.json();
+    try {
+        // First, retrieve the CSRF token
+        const csrfResponse = await fetch('/api/csrf');
+        const csrfData = await csrfResponse.json();
 
-            if (csrfData.success) {
-                csrfToken = csrfData.data.csrf_token;
+        if (csrfData.success) {
+            csrfToken = csrfData.data.csrf_token;
 
-                // Then try to load files to verify session
-                const success = await loadFiles(currentPath);
-                if (success) {
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('mainApp').style.display = 'flex';
-                } else {
-                    handleLogout();
-                }
+            // Then try to load files to verify session
+            const success = await loadFiles(currentPath);
+            if (success) {
+                document.getElementById('loginScreen').style.display = 'none';
+                document.getElementById('mainApp').style.display = 'flex';
             } else {
                 handleLogout();
             }
-        } catch (error) {
-            console.error('Session check failed:', error);
+        } else {
             handleLogout();
         }
+    } catch (error) {
+        console.error('Session check failed:', error);
+        handleLogout();
     }
 }
 
