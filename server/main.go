@@ -104,10 +104,4 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	log.Printf("Default credentials: admin / admin\n")
-	log.Println("Server starting on http://localhost:8080")
-
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal(err)
-	}
 }
