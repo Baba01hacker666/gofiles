@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/subtle"
+	"net"
 	"net/http"
 	"strings"
 )
@@ -9,11 +10,7 @@ import (
 // Middleware
 func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
-		// Strip port if present in RemoteAddr for basic IP
-		if idx := strings.LastIndex(ip, ":"); idx != -1 {
-			ip = ip[:idx]
-		}
+		ip := clientIPFromRemoteAddr(r.RemoteAddr)
 
 		if !rateLimiter.Allow(ip, r.URL.Path) {
 			sendJSON(w, http.StatusTooManyRequests, Response{
@@ -24,6 +21,19 @@ func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		next(w, r)
 	}
+}
+
+func clientIPFromRemoteAddr(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err == nil {
+		return host
+	}
+
+	if strings.HasPrefix(remoteAddr, "[") && strings.HasSuffix(remoteAddr, "]") {
+		return strings.Trim(remoteAddr, "[]")
+	}
+
+	return remoteAddr
 }
 
 func authMiddleware(next http.HandlerFunc) http.HandlerFunc {

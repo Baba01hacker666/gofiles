@@ -129,3 +129,80 @@ func TestValidatePath(t *testing.T) {
 		})
 	}
 }
+
+func TestRateLimiter_GlobalLimit(t *testing.T) {
+	rl := &RateLimiter{
+		visitors: make(map[string]*Visitor),
+	}
+
+	ip := "127.0.0.1"
+	for i := 0; i < 60; i++ {
+		if !rl.Allow(ip, "/api/files") {
+			t.Fatalf("request %d should have been allowed", i+1)
+		}
+	}
+
+	if rl.Allow(ip, "/api/files") {
+		t.Fatal("61st request should have been rate limited")
+	}
+}
+
+func TestRateLimiter_LoginLimitDoesNotConsumeGlobalBudgetAfterLimit(t *testing.T) {
+	rl := &RateLimiter{
+		visitors: make(map[string]*Visitor),
+	}
+
+	ip := "127.0.0.2"
+	for i := 0; i < 5; i++ {
+		if !rl.Allow(ip, "/api/login") {
+			t.Fatalf("login request %d should have been allowed", i+1)
+		}
+	}
+
+	if rl.Allow(ip, "/api/login") {
+		t.Fatal("6th login request should have been rate limited")
+	}
+
+	for i := 0; i < 55; i++ {
+		if !rl.Allow(ip, "/api/files") {
+			t.Fatalf("non-login request %d should have been allowed", i+1)
+		}
+	}
+
+	if rl.Allow(ip, "/api/files") {
+		t.Fatal("next non-login request should have exceeded global limit")
+	}
+}
+
+func TestClientIPFromRemoteAddr(t *testing.T) {
+	tests := []struct {
+		name       string
+		remoteAddr string
+		want       string
+	}{
+		{
+			name:       "ipv4 host and port",
+			remoteAddr: "192.168.1.2:54321",
+			want:       "192.168.1.2",
+		},
+		{
+			name:       "ipv6 host and port",
+			remoteAddr: "[2001:db8::1]:443",
+			want:       "2001:db8::1",
+		},
+		{
+			name:       "host without port",
+			remoteAddr: "10.0.0.7",
+			want:       "10.0.0.7",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := clientIPFromRemoteAddr(tt.remoteAddr)
+			if got != tt.want {
+				t.Fatalf("clientIPFromRemoteAddr(%q) = %q, want %q", tt.remoteAddr, got, tt.want)
+			}
+		})
+	}
+}
