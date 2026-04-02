@@ -9,20 +9,20 @@ func (rl *RateLimiter) Allow(ip, path string) bool {
 	defer rl.Unlock()
 
 	// Check global IP limit
-	globalKey := ip
-	globalV, globalExists := rl.visitors[globalKey]
-	if !globalExists {
-		rl.visitors[globalKey] = &Visitor{time.Now(), 1}
-		globalV = rl.visitors[globalKey]
+	v, exists := rl.visitors[ip]
+	if !exists {
+		rl.visitors[ip] = &Visitor{time.Now(), 1}
+		v = rl.visitors[ip]
 	} else {
-		if time.Since(globalV.lastSeen) > time.Minute {
-			globalV.count = 0
-			globalV.lastSeen = time.Now()
+		if time.Since(v.lastSeen) > time.Minute {
+			v.count = 1
+			v.lastSeen = time.Now()
+		} else {
+			if v.count >= 60 {
+				return false // Global rate limit exceeded
+			}
+			v.count++
 		}
-		if globalV.count >= 60 {
-			return false // Global rate limit exceeded
-		}
-		globalV.count++
 	}
 
 	// Check specific endpoint limit for login
@@ -42,29 +42,11 @@ func (rl *RateLimiter) Allow(ip, path string) bool {
 
 		if loginV.count >= 5 {
 			// Do not penalize global count if login is rate limited
-			globalV.count--
+			v.count--
 			return false // Login rate limit exceeded
 		}
 		loginV.count++
 	}
-
-	v, exists := rl.visitors[ip]
-	if !exists {
-		rl.visitors[ip] = &Visitor{time.Now(), 1}
-		return true
-	}
-
-	if time.Since(v.lastSeen) > time.Minute {
-		v.count = 1
-		v.lastSeen = time.Now()
-		return true
-	}
-
-	if v.count >= 60 {
-		return false
-	}
-
-	v.count++
 	return true
 }
 
