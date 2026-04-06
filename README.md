@@ -60,15 +60,16 @@ A professional, full-featured file manager with Go backend and modern web interf
 
 4. **Access the application**
    - Open browser to: http://localhost:8080
-   - Default credentials: `admin` / `admin`
+  - Default username: `admin`
+  - Default password: Check the server logs for the auto-generated password on startup.
 
 ## Usage
 
 ### Login
-- Username: `admin`
-- Password: `admin`
+- Username: `admin` (default, can be changed via `ADMIN_USERNAME`)
+- Password: Set via `ADMIN_PASSWORD` or `ADMIN_PASSWORD_HASH` environment variables. If neither is provided, a secure random password is generated and printed to the server logs on startup.
 
-**⚠️ IMPORTANT**: Change the default password in production by modifying the authentication logic in `main.go`
+**⚠️ IMPORTANT**: For production, always set a strong password via environment variables.
 
 ### Keyboard Shortcuts
 - `Ctrl/Cmd + U` - Upload files

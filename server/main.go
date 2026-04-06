@@ -18,13 +18,18 @@ var (
 	uploadDir         = "./uploads"
 	baseUploadDir     string
 	serverPort        = "8080"
-	adminUsername     = "admin"
-	adminPasswordHash []byte
-	certFile          = ""
-	keyFile           = ""
+	adminUsername          = "admin"
+	adminPasswordHash      []byte
+	generatedAdminPassword string
+	certFile               = ""
+	keyFile                = ""
 )
 
 func init() {
+	initializeConfig()
+}
+
+func initializeConfig() {
 	if p := os.Getenv("PORT"); p != "" {
 		serverPort = p
 	}
@@ -37,9 +42,13 @@ func init() {
 	}
 	if p := os.Getenv("ADMIN_PASSWORD_HASH"); p != "" {
 		adminPasswordHash = []byte(p)
+	} else if p := os.Getenv("ADMIN_PASSWORD"); p != "" {
+		hash, _ := bcrypt.GenerateFromPassword([]byte(p), bcrypt.DefaultCost)
+		adminPasswordHash = hash
 	} else {
-		// Default to bcrypt hash of "admin"
-		hash, _ := bcrypt.GenerateFromPassword([]byte("admin"), bcrypt.DefaultCost)
+		// Generate a secure random password if none provided
+		generatedAdminPassword = generateAPIKey()
+		hash, _ := bcrypt.GenerateFromPassword([]byte(generatedAdminPassword), bcrypt.DefaultCost)
 		adminPasswordHash = hash
 	}
 	if c := os.Getenv("CERT_FILE"); c != "" {
@@ -92,6 +101,9 @@ func main() {
 	log.Printf("Using configuration:")
 	log.Printf(" - Port: %s\n", serverPort)
 	log.Printf(" - Admin Username: %s\n", adminUsername)
+	if generatedAdminPassword != "" {
+		log.Printf(" - Admin Password (AUTO-GENERATED): %s\n", generatedAdminPassword)
+	}
 	log.Printf(" - Upload Directory: %s\n", uploadDir)
 	if certFile != "" && keyFile != "" {
 		log.Printf("Server starting on https://localhost:%s\n", serverPort)

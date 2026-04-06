@@ -16,8 +16,8 @@ This file manager implements multiple layers of security to protect against comm
 
 #### Password Security
 - Constant-time password comparison prevents timing attacks
-- SHA-256 hashing (upgrade to bcrypt for production)
-- No password in logs or responses
+- Bcrypt hashing for secure password storage
+- No password in logs or responses (except auto-generated password on first startup)
 
 ### 2. Input Validation & Sanitization
 
@@ -163,10 +163,10 @@ Strict-Transport-Security: max-age=31536000
   http.ListenAndServeTLS(":443", "cert.pem", "key.pem", nil)
   ```
 
-- [ ] **Use bcrypt for passwords**
+- [x] **Use bcrypt for passwords**
   ```go
   import "golang.org/x/crypto/bcrypt"
-  hash, _ := bcrypt.GenerateFromPassword([]byte(password), 14)
+  hash, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
   ```
 
 - [ ] **Store credentials in database**

@@ -19,7 +19,8 @@ if [ $? -eq 0 ]; then
     echo "  ./filemanager"
     echo ""
     echo "Then open: http://localhost:8080"
-    echo "Default credentials: admin / admin"
+    echo "Default username: admin"
+    echo "Check server logs for the auto-generated password on first startup."
 else
     echo "✗ Build failed!"
     exit 1

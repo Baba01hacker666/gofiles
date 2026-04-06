@@ -30,7 +30,7 @@ Open your browser to: **http://localhost:8080**
 
 **Default Login:**
 - Username: `admin`
-- Password: `admin`
+- Password: **Check server logs** for auto-generated password (or set via `ADMIN_PASSWORD` env var)
 
 ---
 
@@ -145,7 +145,7 @@ export PATH=$PATH:/usr/local/go/bin
 ## ⚠️ Production Checklist
 
 Before deploying to production:
-- [ ] Change default password (edit `main.go`)
+- [ ] Set a strong password via environment variables
 - [ ] Enable HTTPS (configure TLS)
 - [ ] Use environment variables for secrets
 - [ ] Set up proper database for users
@@ -220,7 +220,7 @@ Before deploying to production:
 
 ## 🚨 Security Notes
 
-- Default credentials are **admin/admin** - CHANGE THEM!
+- No default password! Use the auto-generated one from server logs or set `ADMIN_PASSWORD`.
 - Designed for **trusted environments** by default
 - For internet-facing deployment, review **SECURITY.md**
 - Always use HTTPS in production
