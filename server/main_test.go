@@ -58,6 +58,45 @@ func TestSessionManager_Get(t *testing.T) {
 	}
 }
 
+func TestSessionManager_Create(t *testing.T) {
+	sm := &SessionManager{
+		sessions: make(map[string]*Session),
+	}
+
+	username := "testuser"
+	session := sm.Create(username)
+
+	if session == nil {
+		t.Fatalf("Expected session to be created, got nil")
+	}
+
+	if session.Username != username {
+		t.Errorf("Expected username %s, got %s", username, session.Username)
+	}
+
+	if session.ID == "" {
+		t.Errorf("Expected non-empty session ID")
+	}
+
+	if session.CSRFToken == "" {
+		t.Errorf("Expected non-empty CSRF token")
+	}
+
+	// Allow some buffer for time comparison
+	expectedExpiry := time.Now().Add(24 * time.Hour)
+	if session.ExpiresAt.Before(expectedExpiry.Add(-time.Minute)) || session.ExpiresAt.After(expectedExpiry.Add(time.Minute)) {
+		t.Errorf("Expected expiry around %v, got %v", expectedExpiry, session.ExpiresAt)
+	}
+
+	storedSession, exists := sm.sessions[session.ID]
+	if !exists {
+		t.Errorf("Expected session to be stored in manager")
+	}
+	if storedSession != session {
+		t.Errorf("Expected stored session to be identical to returned session")
+	}
+}
+
 func TestValidatePath(t *testing.T) {
 	// Create a temporary directory for the tests
 	tmpDir, err := os.MkdirTemp("", "test-uploads")
