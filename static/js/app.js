@@ -595,20 +595,31 @@ function handleSearch(e) {
 // UPDATED updateBreadcrumb to show clean paths
 function updateBreadcrumb(path) {
     const breadcrumb = document.getElementById('breadcrumb');
-    let cleanPath = path.replace(/^\.\//,'').replace(/\/$/, '');
+    breadcrumb.innerHTML = ''; // Clear existing breadcrumbs
+
+    let cleanPath = path.replace(/^\.\//, '').replace(/\/$/, '');
     const parts = cleanPath.split('/').filter(p => p && p !== 'uploads');
-    
-    let breadcrumbHTML = `<span class="breadcrumb-item" onclick="loadFiles('./uploads')">uploads</span>`;
-    
+
+    // Create 'uploads' root breadcrumb
+    const rootItem = document.createElement('span');
+    rootItem.className = 'breadcrumb-item';
+    rootItem.textContent = 'uploads';
+    rootItem.addEventListener('click', () => loadFiles('./uploads'));
+    breadcrumb.appendChild(rootItem);
+
     if (parts.length > 0) {
         let currentBuildPath = 'uploads';
-        breadcrumbHTML += parts.map((part, index) => {
+        parts.forEach((part) => {
             currentBuildPath += '/' + part;
-            return `<span class="breadcrumb-item" onclick="loadFiles('${currentBuildPath}')">${escapeHtml(part)}</span>`;
-        }).join('');
+            const itemPath = currentBuildPath; // Capture current state for the closure
+
+            const item = document.createElement('span');
+            item.className = 'breadcrumb-item';
+            item.textContent = part;
+            item.addEventListener('click', () => loadFiles(itemPath));
+            breadcrumb.appendChild(item);
+        });
     }
-    
-    breadcrumb.innerHTML = breadcrumbHTML;
 }
 
 // Keyboard shortcuts
