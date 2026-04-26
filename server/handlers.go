@@ -78,7 +78,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			Value:    session.ID,
 			Expires:  session.ExpiresAt,
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   certFile != "" && keyFile != "",
 			SameSite: http.SameSiteStrictMode,
 		})
 
