@@ -108,6 +108,32 @@ func addFileToZip(zipWriter *zip.Writer, filename, zipPath string) error {
 	return err
 }
 
+func sanitizeName(name string) string {
+	// 1. Normalize separators - replace backslashes with forward slashes
+	name = strings.ReplaceAll(name, "\\", "/")
+
+	// 2. If it ends with a slash, it's referring to a directory structure, not a single name
+	if strings.HasSuffix(name, "/") {
+		return ""
+	}
+
+	// 3. Get the base name (last component)
+	name = filepath.Base(name)
+
+	// 4. Extra safety: remove any remaining separators
+	name = strings.ReplaceAll(name, "/", "")
+
+	// 5. Trim whitespace
+	name = strings.TrimSpace(name)
+
+	// 6. Final check - if it's just dots, empty, or traversal, it's invalid
+	if name == "." || name == ".." || name == "" {
+		return ""
+	}
+
+	return name
+}
+
 func sendJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)

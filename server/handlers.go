@@ -210,7 +210,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(buff)
 	log.Printf("Detected content type: %s for file %s", contentType, handler.Filename)
 
-	filename := filepath.Base(handler.Filename)
+	filename := sanitizeName(handler.Filename)
 
 	// Basic security: restrict typical executable file extensions as DetectContentType
 	// might just return 'application/octet-stream' for them.
@@ -222,7 +222,14 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	filename = strings.ReplaceAll(filename, "..", "")
+
+	if filename == "" {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid filename",
+		})
+		return
+	}
 
 	destDir := r.FormValue("path")
 	if destDir == "" {
@@ -413,13 +420,12 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newName := filepath.Base(req.NewName)
-	newName = strings.TrimSpace(newName)
+	newName := sanitizeName(req.NewName)
 
 	if newName == "" {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
-			Message: "New name cannot be empty",
+			Message: "New name cannot be empty or invalid",
 		})
 		return
 	}
@@ -482,13 +488,9 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("createDirHandler: Path=%s, Name=%s", req.Path, req.Name)
 
 	// Sanitize folder name - remove any path separators and trim whitespace
-	dirName := filepath.Base(req.Name)
-	dirName = strings.TrimSpace(dirName)
-	dirName = strings.ReplaceAll(dirName, "/", "")
-	dirName = strings.ReplaceAll(dirName, "\\", "")
-	dirName = strings.ReplaceAll(dirName, "..", "")
+	dirName := sanitizeName(req.Name)
 
-	if dirName == "" || dirName == "." {
+	if dirName == "" {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid folder name",
@@ -585,7 +587,15 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zipName := filepath.Base(req.Name)
+	zipName := sanitizeName(req.Name)
+	if zipName == "" {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid zip name",
+		})
+		return
+	}
+
 	if !strings.HasSuffix(zipName, ".zip") {
 		zipName += ".zip"
 	}

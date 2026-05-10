@@ -41,3 +41,36 @@ func TestGenerateAPIKey_Decoding(t *testing.T) {
 		t.Errorf("Decoded API key has length %d, want 32", len(decoded))
 	}
 }
+
+func TestSanitizeName(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"normal.txt", "normal.txt"},
+		{"space in name.txt", "space in name.txt"},
+		{"  trimmed.txt  ", "trimmed.txt"},
+		{"path/to/file.txt", "file.txt"},
+		{"path\\to\\file.txt", "file.txt"},
+		{"../../etc/passwd", "passwd"},
+		{"..", ""},
+		{".", ""},
+		{"", ""},
+		{"file..txt", "file..txt"},
+		{"/abs/path", "path"},
+		{"C:\\Windows\\System32\\cmd.exe", "cmd.exe"},
+		{"trailing/", ""},
+		{"trailing//", ""},
+		{"/leading", "leading"},
+		{"dots...txt", "dots...txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got := sanitizeName(tt.input)
+			if got != tt.expected {
+				t.Errorf("sanitizeName(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
