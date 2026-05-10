@@ -54,8 +54,9 @@ func (rl *RateLimiter) Cleanup() {
 	for {
 		time.Sleep(time.Minute)
 		rl.Lock()
+		now := time.Now()
 		for key, v := range rl.visitors {
-			if time.Since(v.lastSeen) > 5*time.Minute {
+			if now.Sub(v.lastSeen) > 5*time.Minute {
 				delete(rl.visitors, key)
 			}
 		}
@@ -97,8 +98,9 @@ func (sm *SessionManager) Cleanup() {
 	for {
 		time.Sleep(time.Hour)
 		sm.Lock()
+		now := time.Now()
 		for id, session := range sm.sessions {
-			if time.Now().After(session.ExpiresAt) {
+			if now.After(session.ExpiresAt) {
 				delete(sm.sessions, id)
 			}
 		}
