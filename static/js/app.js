@@ -294,26 +294,27 @@ function handleDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     
-    const files = Array.from(e.dataTransfer.files);
+    const files = e.dataTransfer.files;
     uploadFiles(files);
 }
 
 function handleFileSelect(e) {
-    const files = Array.from(e.target.files);
+    const files = e.target.files;
     uploadFiles(files);
 }
 
-// UPDATED uploadFiles to include current path
+// UPDATED uploadFiles to include current path and upload concurrently
 async function uploadFiles(files) {
     const uploadList = document.getElementById('uploadList');
+    const fileArray = Array.from(files);
     
-    for (const file of files) {
+    const uploadPromises = fileArray.map(async (file) => {
         const uploadItem = createUploadItem(file);
         uploadList.appendChild(uploadItem);
         
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('path', currentPath);  // ADD CURRENT PATH!
+        formData.append('path', currentPath);
         
         try {
             const response = await fetch('/api/upload', {
@@ -337,7 +338,9 @@ async function uploadFiles(files) {
             updateUploadItem(uploadItem, 0, 'error');
             showToast(`Failed to upload ${file.name}`, 'error');
         }
-    }
+    });
+
+    await Promise.all(uploadPromises);
     
     setTimeout(() => {
         closeUploadModal();
