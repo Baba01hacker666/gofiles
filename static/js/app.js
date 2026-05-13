@@ -42,6 +42,27 @@ function initializeEventListeners() {
     
     // Keyboard shortcuts
     document.addEventListener('keydown', handleKeyboardShortcuts);
+
+    // File list delegation
+    document.getElementById('fileList').addEventListener('click', (e) => {
+        const backBtn = e.target.closest('.back-btn');
+        if (backBtn) {
+            loadFiles(backBtn.dataset.path);
+            return;
+        }
+
+        const navBtn = e.target.closest('.nav-btn');
+        if (navBtn) {
+            handleFileClick(navBtn.dataset.path, navBtn.dataset.isDir === 'true');
+            return;
+        }
+
+        const actionBtn = e.target.closest('.action-btn');
+        if (actionBtn && actionBtn.dataset.action === 'rename') {
+            handleRename(actionBtn.dataset.path);
+            return;
+        }
+    });
 }
 
 // Authentication
@@ -176,7 +197,7 @@ function renderFiles(files) {
             <tr style="background-color: var(--bg-tertiary);">
                 <td></td>
                 <td>
-                    <div class="file-name" onclick="loadFiles('${escapeHtml(validParentPath)}')" style="font-weight: bold; color: var(--primary-color);">
+                    <div class="file-name back-btn" data-path="${escapeHtml(validParentPath)}" style="font-weight: bold; color: var(--primary-color);">
                         📁 .. (Back)
                     </div>
                 </td>
@@ -194,7 +215,7 @@ function renderFiles(files) {
                 <input type="checkbox" class="file-checkbox" data-path="${escapeHtml(file.path)}" aria-label="Select ${escapeHtml(file.name)}">
             </td>
             <td>
-                <div class="file-name" onclick="handleFileClick('${escapeHtml(file.path)}', ${file.isDir})">
+                <div class="file-name nav-btn" data-path="${escapeHtml(file.path)}" data-is-dir="${file.isDir}">
                     ${getFileIcon(file)}
                     <span>${escapeHtml(file.name)}</span>
                 </div>
@@ -203,7 +224,7 @@ function renderFiles(files) {
             <td>${formatDate(file.modTime)}</td>
             <td><code>${file.permissions}</code></td>
             <td>
-                <button class="btn action-btn" onclick="handleRename('${escapeHtml(file.path)}')">Rename</button>
+                <button class="btn action-btn" data-path="${escapeHtml(file.path)}" data-action="rename">Rename</button>
             </td>
         </tr>
     `).join('');
@@ -501,8 +522,6 @@ async function confirmNewFolder() {
     if (cleanPath === '' || cleanPath === 'uploads') {
         cleanPath = '';
     }
-    
-    console.log('Creating folder with path:', cleanPath, 'name:', name);
     
     try {
         const response = await fetch('/api/mkdir', {
