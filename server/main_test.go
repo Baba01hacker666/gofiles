@@ -126,7 +126,7 @@ func TestValidatePath(t *testing.T) {
 	}
 	defer os.RemoveAll("./uploads")
 
-	baseUploadDir, _ := filepath.Abs("./uploads")
+	baseUploadDir, _ = filepath.Abs("./uploads")
 
 	// Create a sibling directory to test the bypass
 	siblingDir := baseUploadDir + "_secret"
