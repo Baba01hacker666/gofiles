@@ -358,6 +358,14 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if cleanPath == baseUploadDir {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Cannot delete root directory",
+		})
+		return
+	}
+
 	if err := os.RemoveAll(cleanPath); err != nil {
 		log.Printf("deleteHandler: RemoveAll error for %s - %v", cleanPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -409,6 +417,14 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Access denied",
+		})
+		return
+	}
+
+	if cleanOldPath == baseUploadDir {
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Cannot rename root directory",
 		})
 		return
 	}
