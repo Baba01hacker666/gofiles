@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
