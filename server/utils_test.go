@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -39,5 +41,25 @@ func TestGenerateAPIKey_Decoding(t *testing.T) {
 	}
 	if len(decoded) != 32 {
 		t.Errorf("Decoded API key has length %d, want 32", len(decoded))
+	}
+}
+
+func TestSendJSON(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	data := map[string]string{"message": "success"}
+
+	sendJSON(recorder, http.StatusCreated, data)
+
+	if recorder.Code != http.StatusCreated {
+		t.Errorf("Expected status code %d, got %d", http.StatusCreated, recorder.Code)
+	}
+
+	if contentType := recorder.Header().Get("Content-Type"); contentType != "application/json" {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", contentType)
+	}
+
+	expectedBody := "{\"message\":\"success\"}\n"
+	if recorder.Body.String() != expectedBody {
+		t.Errorf("Expected body %q, got %q", expectedBody, recorder.Body.String())
 	}
 }
