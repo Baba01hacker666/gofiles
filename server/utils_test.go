@@ -4,7 +4,10 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -113,5 +116,41 @@ func TestAddFileToZip_Failure(t *testing.T) {
 	err := addFileToZip(zipWriter, "non_existent_file.txt", "test.txt")
 	if err == nil {
 		t.Error("Expected error when adding non-existent file to zip, got nil")
+	}
+}
+
+func TestSendJSON(t *testing.T) {
+	recorder := httptest.NewRecorder()
+
+	type TestPayload struct {
+		Message string `json:"message"`
+		Code    int    `json:"code"`
+	}
+
+	payload := TestPayload{
+		Message: "success",
+		Code:    200,
+	}
+
+	sendJSON(recorder, http.StatusCreated, payload)
+
+	if recorder.Code != http.StatusCreated {
+		t.Errorf("Expected status code %d, got %d", http.StatusCreated, recorder.Code)
+	}
+
+	contentType := recorder.Header().Get("Content-Type")
+	if contentType != "application/json" {
+		t.Errorf("Expected Content-Type application/json, got %s", contentType)
+	}
+
+	var decodedPayload TestPayload
+	err := json.NewDecoder(recorder.Body).Decode(&decodedPayload)
+	if err != nil {
+		t.Fatalf("Failed to decode response body: %v", err)
+	}
+
+	if decodedPayload.Message != payload.Message || decodedPayload.Code != payload.Code {
+		t.Errorf("Expected payload %+v, got %+v", payload, decodedPayload)
+
 	}
 }
