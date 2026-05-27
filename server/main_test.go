@@ -1,6 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -122,7 +126,7 @@ func TestValidatePath(t *testing.T) {
 	}
 	defer os.RemoveAll("./uploads")
 
-	baseUploadDir, _ := filepath.Abs("./uploads")
+	baseUploadDir, _ = filepath.Abs("./uploads")
 
 	// Create a sibling directory to test the bypass
 	siblingDir := baseUploadDir + "_secret"
@@ -243,5 +247,85 @@ func TestClientIPFromRemoteAddr(t *testing.T) {
 				t.Fatalf("clientIPFromRemoteAddr(%q) = %q, want %q", tt.remoteAddr, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDeleteHandler_RootDirectoryForbidden(t *testing.T) {
+	// Setup a temporary directory for tests
+	tmpDir, err := os.MkdirTemp("", "test-uploads")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Temporarily override the baseUploadDir
+	originalBaseUploadDir := baseUploadDir
+	baseUploadDir = tmpDir
+	defer func() { baseUploadDir = originalBaseUploadDir }()
+
+	req, err := http.NewRequest(http.MethodDelete, "/api/delete?path=.", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(deleteHandler)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusForbidden {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusForbidden)
+	}
+
+	var resp Response
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.Success != false {
+		t.Errorf("Expected Success to be false, got true")
+	}
+}
+
+func TestRenameHandler_RootDirectoryForbidden(t *testing.T) {
+	// Setup a temporary directory for tests
+	tmpDir, err := os.MkdirTemp("", "test-uploads")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Temporarily override the baseUploadDir
+	originalBaseUploadDir := baseUploadDir
+	baseUploadDir = tmpDir
+	defer func() { baseUploadDir = originalBaseUploadDir }()
+
+	payload := map[string]string{
+		"oldPath": ".",
+		"newName": "new-name",
+	}
+	body, _ := json.Marshal(payload)
+
+	req, err := http.NewRequest(http.MethodPost, "/api/rename", bytes.NewBuffer(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(renameHandler)
+	handler.ServeHTTP(rr, req)
+
+	if status := rr.Code; status != http.StatusForbidden {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusForbidden)
+	}
+
+	var resp Response
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+
+	if resp.Success != false {
+		t.Errorf("Expected Success to be false, got true")
 	}
 }
