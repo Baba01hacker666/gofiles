@@ -210,7 +210,14 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(buff)
 	log.Printf("Detected content type: %s for file %s", contentType, handler.Filename)
 
-	filename := filepath.Base(handler.Filename)
+	filename, err := sanitizeName(handler.Filename)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid filename",
+		})
+		return
+	}
 
 	// Basic security: restrict typical executable file extensions as DetectContentType
 	// might just return 'application/octet-stream' for them.
@@ -222,7 +229,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	filename = strings.ReplaceAll(filename, "..", "")
 
 	destDir := r.FormValue("path")
 	if destDir == "" {
@@ -413,9 +419,15 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newName := filepath.Base(req.NewName)
+	newName, err := sanitizeName(req.NewName)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid new name",
+		})
+		return
+	}
 	newName = strings.TrimSpace(newName)
-
 	if newName == "" {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -585,7 +597,14 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zipName := filepath.Base(req.Name)
+	zipName, err := sanitizeName(req.Name)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid zip name",
+		})
+		return
+	}
 	if !strings.HasSuffix(zipName, ".zip") {
 		zipName += ".zip"
 	}

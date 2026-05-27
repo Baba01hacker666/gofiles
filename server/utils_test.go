@@ -41,3 +41,40 @@ func TestGenerateAPIKey_Decoding(t *testing.T) {
 		t.Errorf("Decoded API key has length %d, want 32", len(decoded))
 	}
 }
+
+func TestSanitizeName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"normal file", "test.txt", "test.txt", false},
+		{"file with space", "test file.txt", "test file.txt", false},
+		{"path traversal unix", "../../../etc/passwd", "passwd", false},
+		{"path traversal windows", "..\\..\\..\\Windows\\System32\\cmd.exe", "cmd.exe", false},
+		{"absolute path unix", "/etc/passwd", "passwd", false},
+		{"absolute path windows", "C:\\Windows\\System32\\cmd.exe", "cmd.exe", false},
+		{"mixed slashes", "a/b\\c/d.txt", "d.txt", false},
+		{"empty string", "", "", true},
+		{"dot", ".", "", true},
+		{"dot dot", "..", "", true},
+		{"slash", "/", "", true},
+		{"backslash", "\\", "", true},
+		{"trailing slash unix", "folder/", "", true},
+		{"trailing slash windows", "folder\\", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sanitizeName(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("sanitizeName() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("sanitizeName() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

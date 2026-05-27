@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -57,6 +58,25 @@ func validatePath(requestPath string) (string, error) {
 	}
 
 	return cleanPath, nil
+}
+
+// sanitizeName sanitizes a filename or directory name to prevent path traversal.
+func sanitizeName(name string) (string, error) {
+	// Normalize backslashes to forward slashes for consistent handling
+	name = strings.ReplaceAll(name, "\\", "/")
+
+	// If the name ends with a slash, it's indicating a directory structure, reject
+	if strings.HasSuffix(name, "/") {
+		return "", errors.New("invalid name: trailing slash")
+	}
+
+	base := filepath.Base(name)
+
+	if base == "" || base == "." || base == ".." || base == "/" || base == "\\" {
+		return "", errors.New("invalid name")
+	}
+
+	return base, nil
 }
 
 func addToZip(zipWriter *zip.Writer, filename, baseDir string) error {
