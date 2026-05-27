@@ -10,7 +10,7 @@ import (
 // Middleware
 func rateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := clientIPFromRemoteAddr(r.RemoteAddr)
+		ip := getClientIP(r)
 
 		if !rateLimiter.Allow(ip, r.URL.Path) {
 			sendJSON(w, http.StatusTooManyRequests, Response{
@@ -82,4 +82,25 @@ func securityHeadersMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		next(w, r)
 	}
+}
+
+func getClientIP(r *http.Request) string {
+	xForwardedFor := r.Header.Get("X-Forwarded-For")
+	if xForwardedFor != "" {
+		ips := strings.Split(xForwardedFor, ",")
+		// Take the rightmost IP in X-Forwarded-For (the proxy's direct client)
+		for i := len(ips) - 1; i >= 0; i-- {
+			ip := strings.TrimSpace(ips[i])
+			if ip != "" {
+				return ip
+			}
+		}
+	}
+
+	xRealIP := r.Header.Get("X-Real-IP")
+	if xRealIP != "" {
+		return strings.TrimSpace(xRealIP)
+	}
+
+	return clientIPFromRemoteAddr(r.RemoteAddr)
 }
