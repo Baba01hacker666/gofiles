@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+// Initialize baseUploadDir for utils.go to compile in tests when run individually
+// but not as a global redeclaration to allow go test ./... to work
 // Dummy baseUploadDir for utils.go to compile in tests
 // var baseUploadDir = "/tmp/test"
 
