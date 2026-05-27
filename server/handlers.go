@@ -350,7 +350,7 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cleanPath == "" {
+	if cleanPath == "" || cleanPath == baseUploadDir {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Access denied",
@@ -405,7 +405,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cleanOldPath == "" {
+	if cleanOldPath == "" || cleanOldPath == baseUploadDir {
 		sendJSON(w, http.StatusForbidden, Response{
 			Success: false,
 			Message: "Access denied",

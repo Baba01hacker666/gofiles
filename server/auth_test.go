@@ -5,8 +5,6 @@ import (
 	"time"
 )
 
-// Dummy baseUploadDir for utils.go to compile in tests
-var baseUploadDir = "/tmp/test"
 
 func TestRateLimiter_Allow_GlobalLimit(t *testing.T) {
 	rl := &RateLimiter{
