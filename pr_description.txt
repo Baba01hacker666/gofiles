@@ -1,0 +1,3 @@
+🎯 **What:** The `sendJSON` function in `server/utils.go` was lacking any unit tests. This patch introduces `TestSendJSON` to explicitly test that the function correctly sets headers, status codes, and encodes JSON data.
+📊 **Coverage:** The new test ensures the happy path of `sendJSON` works correctly. It verifies the response sets the correct HTTP Status, "Content-Type" to "application/json", and produces the expected JSON output body.
+✨ **Result:** Increased testing coverage in `server/utils.go`, guaranteeing that changes to the `sendJSON` utility function will be caught if they break this fundamental API capability.
