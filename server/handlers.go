@@ -288,31 +288,46 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 func downloadHandler(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
-		http.Error(w, "Path required", http.StatusBadRequest)
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Path required",
+		})
 		return
 	}
 
 	cleanPath, err := validatePath(path)
 	if err != nil {
 		log.Printf("downloadHandler: validatePath error - %v", err)
-		http.Error(w, "Invalid path", http.StatusBadRequest)
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid path",
+		})
 		return
 	}
 
 	if cleanPath == "" {
-		http.Error(w, "Access denied", http.StatusForbidden)
+		sendJSON(w, http.StatusForbidden, Response{
+			Success: false,
+			Message: "Access denied",
+		})
 		return
 	}
 
 	info, err := os.Stat(cleanPath)
 	if err != nil {
 		log.Printf("downloadHandler: Stat error for %s - %v", cleanPath, err)
-		http.Error(w, "File not found", http.StatusNotFound)
+		sendJSON(w, http.StatusNotFound, Response{
+			Success: false,
+			Message: "File not found",
+		})
 		return
 	}
 
 	if info.IsDir() {
-		http.Error(w, "Cannot download directory", http.StatusBadRequest)
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Cannot download directory",
+		})
 		return
 	}
 

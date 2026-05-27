@@ -24,7 +24,7 @@ func validatePath(requestPath string) (string, error) {
 	cleanedRequestPath := filepath.Clean(requestPath)
 
 	// If the path already contains the full absolute path, extract just the relative part
-	if strings.Contains(cleanedRequestPath, baseUploadDir) {
+	if strings.HasPrefix(cleanedRequestPath, baseUploadDir) {
 		// Remove the base upload dir from the path
 		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, baseUploadDir)
 		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, string(filepath.Separator))
