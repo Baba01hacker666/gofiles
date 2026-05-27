@@ -418,28 +418,32 @@ async function handleDelete() {
     
     showLoading(true);
     
-    for (const path of selectedFiles) {
-        try {
-            const response = await fetch(`/api/delete?path=${encodeURIComponent(path)}`, {
-                method: 'DELETE',
-                headers: {
-                    'X-CSRF-Token': csrfToken
+    try {
+        for (const path of selectedFiles) {
+            try {
+                const response = await fetch(`/api/delete?path=${encodeURIComponent(path)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRF-Token': csrfToken
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!data.success) {
+                    showToast(`Failed to delete ${path}`, 'error');
                 }
-            });
-            
-            const data = await response.json();
-            
-            if (!data.success) {
+            } catch (error) {
                 showToast(`Failed to delete ${path}`, 'error');
             }
-        } catch (error) {
-            showToast(`Failed to delete ${path}`, 'error');
         }
+
+        selectedFiles.clear();
+        await loadFiles(currentPath);
+        showToast('Items deleted', 'success');
+    } finally {
+        showLoading(false);
     }
-    
-    selectedFiles.clear();
-    loadFiles(currentPath);
-    showToast('Items deleted', 'success');
 }
 
 // Rename
