@@ -1,5 +1,8 @@
-## [2026-04-26] XSS via HTML Entity Decoding in Attributes
+# Sentinel Security Journal
 
+## Fix: Root Directory Deletion Vulnerability
+**Issue**: Destructive operations like delete and rename on paths such as `""` or `"."` successfully validated but pointed to the global `baseUploadDir` (the root uploads directory), potentially allowing an attacker to delete or rename the entire root upload folder.
+**Fix**: `deleteHandler` and `renameHandler` were updated to perform an exact string match check against `baseUploadDir` (`if cleanPath == baseUploadDir`), returning a 403 Forbidden to reject these attempts.
 **Vulnerability:** DOM-based XSS when using inline event handlers (e.g., `onclick`) even with HTML escaping.
 **Context:** In `static/js/app.js`, file paths were escaped using `escapeHtml` and then placed into `onclick` attributes.
 **Technical Detail:** Browsers decode HTML entities (like `&#039;` for a single quote) within attributes *before* the JavaScript engine executes the code. This allows an attacker to break out of a string literal and execute arbitrary code if they can control part of the attribute value (e.g., a filename).
