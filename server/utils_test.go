@@ -1,7 +1,12 @@
 package main
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/base64"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -39,5 +44,74 @@ func TestGenerateAPIKey_Decoding(t *testing.T) {
 	}
 	if len(decoded) != 32 {
 		t.Errorf("Decoded API key has length %d, want 32", len(decoded))
+	}
+}
+
+func TestAddFileToZip_Success(t *testing.T) {
+	// Create a temporary file
+	tempDir := t.TempDir()
+	tempFile := filepath.Join(tempDir, "test.txt")
+	content := []byte("hello zip")
+	err := os.WriteFile(tempFile, content, 0644)
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+
+	// Create an in-memory zip writer
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	// Call the function
+	err = addFileToZip(zipWriter, tempFile, "test.txt")
+	if err != nil {
+		t.Errorf("addFileToZip failed: %v", err)
+	}
+
+	// Close the zip writer
+	err = zipWriter.Close()
+	if err != nil {
+		t.Fatalf("Failed to close zip writer: %v", err)
+	}
+
+	// Read the zip archive back
+	zipReader, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatalf("Failed to read created zip: %v", err)
+	}
+
+	if len(zipReader.File) != 1 {
+		t.Fatalf("Expected 1 file in zip, got %d", len(zipReader.File))
+	}
+
+	// Check file content
+	f := zipReader.File[0]
+	if f.Name != "test.txt" {
+		t.Errorf("Expected filename 'test.txt', got '%s'", f.Name)
+	}
+
+	rc, err := f.Open()
+	if err != nil {
+		t.Fatalf("Failed to open file inside zip: %v", err)
+	}
+	defer rc.Close()
+
+	readContent, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("Failed to read file inside zip: %v", err)
+	}
+
+	if string(readContent) != "hello zip" {
+		t.Errorf("Expected content 'hello zip', got '%s'", string(readContent))
+	}
+}
+
+func TestAddFileToZip_Failure(t *testing.T) {
+	var buf bytes.Buffer
+	zipWriter := zip.NewWriter(&buf)
+
+	// Try to add a non-existent file
+	err := addFileToZip(zipWriter, "non_existent_file.txt", "test.txt")
+	if err == nil {
+		t.Error("Expected error when adding non-existent file to zip, got nil")
 	}
 }
