@@ -1,11 +1,8 @@
 package main
 
 import (
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
-
 	"encoding/base64"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -80,5 +77,45 @@ func TestSendJSON(t *testing.T) {
 
 	if decodedPayload.Message != payload.Message || decodedPayload.Code != payload.Code {
 		t.Errorf("Expected payload %+v, got %+v", payload, decodedPayload)
+	}
+}
+
+func TestSanitizeName(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		{"normal file", "report.pdf", "report.pdf", false},
+		{"file with spaces", "my file.txt", "my file.txt", false},
+		{"simple traversal", "../etc/passwd", "passwd", false},
+		{"double traversal", "../../etc/shadow", "shadow", false},
+		{"windows absolute path", `C:\Windows\System32\cmd.exe`, "cmd.exe", false},
+		{"windows UNC path", `\\server\share\file.txt`, "file.txt", false},
+		{"backslash traversal", `..\..\secret`, "secret", false},
+		{"mixed slashes", `..\/../secret`, "secret", false},
+		{"trailing slash", "folder/", "folder", false},
+		{"trailing backslash", `folder\`, "folder", false},
+		{"just dot", ".", "", true},
+		{"just dotdot", "..", "", true},
+		{"empty string", "", "", true},
+		{"only slashes", "///", "", true},
+		{"only backslashes", `\\\`, "", true},
+		{"nested with backslashes", `subdir\..\..\file.txt`, "file.txt", false},
+		{"unicode name", "файл.txt", "файл.txt", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := sanitizeName(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("sanitizeName(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("sanitizeName(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
 	}
 }

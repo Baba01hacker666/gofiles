@@ -3,12 +3,15 @@ package main
 import (
 	"archive/zip"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -48,6 +51,37 @@ func getCsrfTokenHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func logoutHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		sendJSON(w, http.StatusMethodNotAllowed, Response{
+			Success: false,
+			Message: "Method not allowed",
+		})
+		return
+	}
+
+	cookie, err := r.Cookie("session_id")
+	if err == nil {
+		sessions.Delete(cookie.Value)
+	}
+
+	// Clear the session cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_id",
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   certFile != "" && keyFile != "",
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
+	})
+
+	sendJSON(w, http.StatusOK, Response{
+		Success: true,
+		Message: "Logged out successfully",
+	})
+}
+
 func loginHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		sendJSON(w, http.StatusMethodNotAllowed, Response{
@@ -57,6 +91,8 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Limit request body size to prevent memory exhaustion
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB max for JSON login
 	var credentials struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -78,8 +114,9 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 			Value:    session.ID,
 			Expires:  session.ExpiresAt,
 			HttpOnly: true,
-			Secure:   false,
+			Secure:   certFile != "" && keyFile != "",
 			SameSite: http.SameSiteStrictMode,
+			Path:     "/",
 		})
 
 		sendJSON(w, http.StatusOK, Response{
@@ -91,6 +128,9 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
+	// Small delay on failed login; rate limiter does the heavy lifting
+	time.Sleep(100 * time.Millisecond)
 
 	sendJSON(w, http.StatusUnauthorized, Response{
 		Success: false,
@@ -168,7 +208,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
-	if err := r.ParseMultipartForm(maxUploadSize); err != nil {
+	if err := r.ParseMultipartForm(32 << 20); err != nil { // 32MB in-memory; rest spills to temp file
 		log.Printf("uploadHandler: ParseMultipartForm error - %v", err)
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -210,7 +250,15 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	contentType := http.DetectContentType(buff)
 	log.Printf("Detected content type: %s for file %s", contentType, handler.Filename)
 
-	filename := filepath.Base(handler.Filename)
+	filename, err := sanitizeName(handler.Filename)
+	if err != nil {
+		log.Printf("uploadHandler: sanitizeName error for %s - %v", handler.Filename, err)
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid filename",
+		})
+		return
+	}
 
 	// Basic security: restrict typical executable file extensions as DetectContentType
 	// might just return 'application/octet-stream' for them.
@@ -222,7 +270,6 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	filename = strings.ReplaceAll(filename, "..", "")
 
 	destDir := r.FormValue("path")
 	if destDir == "" {
@@ -264,7 +311,7 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer dest.Close()
 
-	if _, err := io.Copy(dest, file); err != nil {
+	if _, err := pooledCopy(dest, file); err != nil {
 		log.Printf("uploadHandler: Copy error - %v", err)
 		sendJSON(w, http.StatusInternalServerError, Response{
 			Success: false,
@@ -331,8 +378,9 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Disposition", "attachment; filename="+filepath.Base(cleanPath))
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, strings.ReplaceAll(filepath.Base(cleanPath), `"`, `\"`)))
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 
 	http.ServeFile(w, r, cleanPath)
 }
@@ -373,14 +421,6 @@ func deleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cleanPath == baseUploadDir {
-		sendJSON(w, http.StatusForbidden, Response{
-			Success: false,
-			Message: "Cannot delete root directory",
-		})
-		return
-	}
-
 	if err := os.RemoveAll(cleanPath); err != nil {
 		log.Printf("deleteHandler: RemoveAll error for %s - %v", cleanPath, err)
 		sendJSON(w, http.StatusInternalServerError, Response{
@@ -410,6 +450,7 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		NewName string `json:"newName"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB max for JSON
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -436,18 +477,8 @@ func renameHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if cleanOldPath == baseUploadDir {
-		sendJSON(w, http.StatusForbidden, Response{
-			Success: false,
-			Message: "Cannot rename root directory",
-		})
-		return
-	}
-
-	newName := filepath.Base(req.NewName)
-	newName = strings.TrimSpace(newName)
-
-	if newName == "" {
+	newName, err := sanitizeName(req.NewName)
+	if err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "New name cannot be empty",
@@ -502,6 +533,7 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 		Name string `json:"name"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB max for JSON
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -512,14 +544,8 @@ func createDirHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("createDirHandler: Path=%s, Name=%s", req.Path, req.Name)
 
-	// Sanitize folder name - remove any path separators and trim whitespace
-	dirName := filepath.Base(req.Name)
-	dirName = strings.TrimSpace(dirName)
-	dirName = strings.ReplaceAll(dirName, "/", "")
-	dirName = strings.ReplaceAll(dirName, "\\", "")
-	dirName = strings.ReplaceAll(dirName, "..", "")
-
-	if dirName == "" || dirName == "." {
+	dirName, err := sanitizeName(req.Name)
+	if err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
 			Message: "Invalid folder name",
@@ -608,6 +634,7 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		Name  string   `json:"name"`
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB max for JSON
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		sendJSON(w, http.StatusBadRequest, Response{
 			Success: false,
@@ -616,7 +643,14 @@ func zipHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zipName := filepath.Base(req.Name)
+	zipName, err := sanitizeName(req.Name)
+	if err != nil {
+		sendJSON(w, http.StatusBadRequest, Response{
+			Success: false,
+			Message: "Invalid zip file name",
+		})
+		return
+	}
 	if !strings.HasSuffix(zipName, ".zip") {
 		zipName += ".zip"
 	}
@@ -669,21 +703,26 @@ func searchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var results []FileInfo
+	queryLower := strings.ToLower(query)
+	results := make([]FileInfo, 0, 64)
 
-	err := filepath.Walk(baseUploadDir, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(baseUploadDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 
-		if strings.Contains(strings.ToLower(info.Name()), strings.ToLower(query)) {
+		if strings.Contains(strings.ToLower(d.Name()), queryLower) {
+			info, err := d.Info()
+			if err != nil {
+				return nil
+			}
 			relPath, _ := filepath.Rel(baseUploadDir, path)
 
 			results = append(results, FileInfo{
-				Name:        info.Name(),
+				Name:        d.Name(),
 				Path:        relPath,
 				Size:        info.Size(),
-				IsDir:       info.IsDir(),
+				IsDir:       d.IsDir(),
 				ModTime:     info.ModTime(),
 				Permissions: info.Mode().String(),
 			})

@@ -5,12 +5,19 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 )
+
+// ---------------------------------------------------------------------------
+// Key generation
+// ---------------------------------------------------------------------------
 
 func generateAPIKey() string {
 	b := make([]byte, 32)
@@ -18,14 +25,75 @@ func generateAPIKey() string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// FIXED: validatePath function - prevents path doubling issue
+// generateTwoKeys produces two independent tokens from a single 48-byte
+// crypto/rand read (one syscall instead of two).
+func generateTwoKeys() (string, string) {
+	b := make([]byte, 48) // 24 bytes → 32 base64 chars each
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b[:24]),
+		base64.URLEncoding.EncodeToString(b[24:])
+}
+
+// ---------------------------------------------------------------------------
+// Pooled I/O buffers
+// ---------------------------------------------------------------------------
+
+var copyBufPool = sync.Pool{
+	New: func() interface{} {
+		buf := make([]byte, 256*1024) // 256 KB
+		return &buf
+	},
+}
+
+// pooledCopy is like io.Copy but uses a pooled 256 KB buffer instead of the
+// default 32 KB, reducing syscall count for large transfers.
+func pooledCopy(dst io.Writer, src io.Reader) (int64, error) {
+	bufp := copyBufPool.Get().(*[]byte)
+	defer copyBufPool.Put(bufp)
+	return io.CopyBuffer(dst, src, *bufp)
+}
+
+// ---------------------------------------------------------------------------
+// Filename sanitisation
+// ---------------------------------------------------------------------------
+
+// sanitizeName normalises a user-supplied file or directory name.
+// It converts backslashes to forward slashes (defending against Windows-style
+// absolute paths like C:\Windows\System32\cmd.exe on a Linux host where
+// filepath.Base would not strip the backslash path), then applies filepath.Base
+// to collapse any remaining directory components. It rejects ".", "..",
+// empty strings and trailing slashes.
+func sanitizeName(name string) (string, error) {
+	// Normalise backslashes to forward slashes so filepath.Base works uniformly
+	normalised := strings.ReplaceAll(name, "\\", "/")
+
+	// Strip any trailing slashes so filepath.Base doesn't return "."
+	normalised = strings.TrimRight(normalised, "/")
+
+	if normalised == "" {
+		return "", fmt.Errorf("empty name")
+	}
+
+	cleaned := filepath.Base(normalised)
+
+	if cleaned == "." || cleaned == ".." || cleaned == string(filepath.Separator) {
+		return "", fmt.Errorf("invalid name: %s", name)
+	}
+
+	return cleaned, nil
+}
+
+// ---------------------------------------------------------------------------
+// Path validation
+// ---------------------------------------------------------------------------
+
+// validatePath prevents path doubling and path traversal.
 func validatePath(requestPath string) (string, error) {
 	// Clean the request path
 	cleanedRequestPath := filepath.Clean(requestPath)
 
 	// If the path already contains the full absolute path, extract just the relative part
 	if strings.HasPrefix(cleanedRequestPath, baseUploadDir) {
-		// Remove the base upload dir from the path
 		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, baseUploadDir)
 		cleanedRequestPath = strings.TrimPrefix(cleanedRequestPath, string(filepath.Separator))
 	}
@@ -51,13 +119,16 @@ func validatePath(requestPath string) (string, error) {
 	}
 
 	// Ensure the resolved path is within the upload directory
-	// Use proper path separator checking
 	if cleanPath != baseUploadDir && !strings.HasPrefix(cleanPath, baseUploadDir+string(filepath.Separator)) {
 		return "", nil
 	}
 
 	return cleanPath, nil
 }
+
+// ---------------------------------------------------------------------------
+// Zip helpers
+// ---------------------------------------------------------------------------
 
 func addToZip(zipWriter *zip.Writer, filename, baseDir string) error {
 	info, err := os.Stat(filename)
@@ -66,12 +137,11 @@ func addToZip(zipWriter *zip.Writer, filename, baseDir string) error {
 	}
 
 	if info.IsDir() {
-		return filepath.Walk(filename, func(path string, info os.FileInfo, err error) error {
+		return filepath.WalkDir(filename, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
-
-			if info.IsDir() {
+			if d.IsDir() {
 				return nil
 			}
 
@@ -93,23 +163,36 @@ func addToZip(zipWriter *zip.Writer, filename, baseDir string) error {
 }
 
 func addFileToZip(zipWriter *zip.Writer, filename, zipPath string) error {
+	// Sanitize zip entry path to prevent zip slip attacks
+	cleanZipPath := filepath.Clean(zipPath)
+	if strings.HasPrefix(cleanZipPath, "..") || strings.HasPrefix(cleanZipPath, "/") {
+		return fmt.Errorf("invalid zip entry path: %s", zipPath)
+	}
+
 	file, err := os.Open(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
-	writer, err := zipWriter.Create(zipPath)
+	writer, err := zipWriter.Create(cleanZipPath)
 	if err != nil {
 		return err
 	}
 
-	_, err = io.Copy(writer, file)
+	_, err = pooledCopy(writer, file)
 	return err
 }
+
+// ---------------------------------------------------------------------------
+// JSON response helper
+// ---------------------------------------------------------------------------
 
 func sendJSON(w http.ResponseWriter, statusCode int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	if b, err := json.Marshal(data); err == nil {
+		w.Write(b)
+		w.Write([]byte{'\n'})
+	}
 }

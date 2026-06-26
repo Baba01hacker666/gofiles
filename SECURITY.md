@@ -11,7 +11,9 @@ This file manager implements multiple layers of security to protect against comm
 - Secure session creation with cryptographically random IDs
 - HTTPOnly cookies prevent XSS cookie theft
 - SameSite=Strict prevents CSRF via cookies
+- Secure cookie flag set when TLS is enabled
 - Configurable session timeout (default: 24 hours)
+- Server-side session invalidation on logout
 - Automatic session cleanup
 
 #### Password Security
@@ -58,17 +60,19 @@ if v.count >= 60 {
 ```
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
-X-XSS-Protection: 1; mode=block
-Content-Security-Policy: default-src 'self'
-Strict-Transport-Security: max-age=31536000
+Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
 ```
 
 **Purpose:**
 - Prevent MIME sniffing attacks
 - Prevent clickjacking
-- Enable browser XSS protection
 - Restrict resource loading
 - Force HTTPS (when enabled)
+- Control referrer information leakage
+- Disable unnecessary browser features (camera, microphone, geolocation)
 
 ### 5. CSRF Protection
 
@@ -126,8 +130,8 @@ Strict-Transport-Security: max-age=31536000
 ### 5. Brute Force Attacks
 **Threat:** Password guessing attacks
 **Mitigation:**
-- Rate limiting
-- Account lockout (to implement)
+- Rate limiting (5 login attempts per minute per IP)
+- 500ms delay on failed login attempts
 - Strong password requirements (to implement)
 
 ### 6. Session Hijacking

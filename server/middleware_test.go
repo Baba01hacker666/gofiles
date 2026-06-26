@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -80,9 +81,6 @@ func TestGetClientIP(t *testing.T) {
 		})
 	}
 }
-	"net/http/httptest"
-	"testing"
-)
 
 func TestAuthMiddleware(t *testing.T) {
 	// Initialize global variables to prevent panics during test
@@ -92,9 +90,7 @@ func TestAuthMiddleware(t *testing.T) {
 		}
 	}
 	if rateLimiter == nil {
-		rateLimiter = &RateLimiter{
-			visitors: make(map[string]*Visitor),
-		}
+		rateLimiter = NewRateLimiter()
 	}
 
 	// Create a dummy valid session
@@ -197,7 +193,13 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 	if got := headers.Get("X-Frame-Options"); got != "DENY" {
 		t.Errorf("Expected X-Frame-Options: DENY, got: %s", got)
 	}
-	if got := headers.Get("X-XSS-Protection"); got != "1; mode=block" {
-		t.Errorf("Expected X-XSS-Protection: 1; mode=block, got: %s", got)
+	if got := headers.Get("Referrer-Policy"); got != "strict-origin-when-cross-origin" {
+		t.Errorf("Expected Referrer-Policy: strict-origin-when-cross-origin, got: %s", got)
+	}
+	if got := headers.Get("Permissions-Policy"); got != "camera=(), microphone=(), geolocation=()" {
+		t.Errorf("Expected Permissions-Policy: camera=(), microphone=(), geolocation=(), got: %s", got)
+	}
+	if got := headers.Get("X-XSS-Protection"); got != "" {
+		t.Errorf("Expected X-XSS-Protection to be removed, got: %s", got)
 	}
 }

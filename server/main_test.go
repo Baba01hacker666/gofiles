@@ -174,9 +174,7 @@ func TestValidatePath(t *testing.T) {
 }
 
 func TestRateLimiter_GlobalLimit(t *testing.T) {
-	rl := &RateLimiter{
-		visitors: make(map[string]*Visitor),
-	}
+	rl := NewRateLimiter()
 
 	ip := "127.0.0.1"
 	for i := 0; i < 60; i++ {
@@ -191,9 +189,7 @@ func TestRateLimiter_GlobalLimit(t *testing.T) {
 }
 
 func TestRateLimiter_LoginLimitDoesNotConsumeGlobalBudgetAfterLimit(t *testing.T) {
-	rl := &RateLimiter{
-		visitors: make(map[string]*Visitor),
-	}
+	rl := NewRateLimiter()
 
 	ip := "127.0.0.2"
 	for i := 0; i < 5; i++ {

@@ -9,9 +9,7 @@ import (
 // when testing the entire package
 
 func TestRateLimiter_Allow_GlobalLimit(t *testing.T) {
-	rl := &RateLimiter{
-		visitors: make(map[string]*Visitor),
-	}
+	rl := NewRateLimiter()
 
 	ip := "192.168.1.1"
 
@@ -29,9 +27,7 @@ func TestRateLimiter_Allow_GlobalLimit(t *testing.T) {
 }
 
 func TestRateLimiter_Allow_LoginLimit(t *testing.T) {
-	rl := &RateLimiter{
-		visitors: make(map[string]*Visitor),
-	}
+	rl := NewRateLimiter()
 
 	ip := "192.168.1.2"
 
@@ -55,9 +51,7 @@ func TestRateLimiter_Allow_LoginLimit(t *testing.T) {
 }
 
 func TestRateLimiter_ResetTime(t *testing.T) {
-	rl := &RateLimiter{
-		visitors: make(map[string]*Visitor),
-	}
+	rl := NewRateLimiter()
 
 	ip := "192.168.1.3"
 
@@ -77,11 +71,12 @@ func TestRateLimiter_ResetTime(t *testing.T) {
 		t.Fatal("Global request should be blocked")
 	}
 
-	// Fast forward time by 2 minutes
-	rl.Lock()
-	rl.visitors[ip].lastSeen = time.Now().Add(-2 * time.Minute)
-	rl.visitors[ip+":login"].lastSeen = time.Now().Add(-2 * time.Minute)
-	rl.Unlock()
+	// Fast forward time by 2 minutes via the correct shard
+	s := rl.shard(ip)
+	s.Lock()
+	s.visitors[ip].lastSeen = time.Now().Add(-2 * time.Minute)
+	s.visitors[ip+":login"].lastSeen = time.Now().Add(-2 * time.Minute)
+	s.Unlock()
 
 	// Should be allowed again
 	if !rl.Allow(ip, "/api/login") {

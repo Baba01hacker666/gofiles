@@ -77,9 +77,10 @@ func securityHeadersMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
-		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'")
 		w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		next(w, r)
 	}
 }
@@ -87,14 +88,11 @@ func securityHeadersMiddleware(next http.HandlerFunc) http.HandlerFunc {
 func getClientIP(r *http.Request) string {
 	xForwardedFor := r.Header.Get("X-Forwarded-For")
 	if xForwardedFor != "" {
-		ips := strings.Split(xForwardedFor, ",")
-		// Take the rightmost IP in X-Forwarded-For (the proxy's direct client)
-		for i := len(ips) - 1; i >= 0; i-- {
-			ip := strings.TrimSpace(ips[i])
-			if ip != "" {
-				return ip
-			}
+		// Zero-alloc: find the last comma to get the rightmost (proxy-direct) IP
+		if idx := strings.LastIndexByte(xForwardedFor, ','); idx >= 0 {
+			return strings.TrimSpace(xForwardedFor[idx+1:])
 		}
+		return strings.TrimSpace(xForwardedFor)
 	}
 
 	xRealIP := r.Header.Get("X-Real-IP")

@@ -5,18 +5,21 @@ import (
 )
 
 func (rl *RateLimiter) Allow(ip, path string) bool {
-	rl.Lock()
-	defer rl.Unlock()
+	s := rl.shard(ip)
+	s.Lock()
+	defer s.Unlock()
+
+	now := time.Now()
 
 	// Check global IP limit
-	v, exists := rl.visitors[ip]
+	v, exists := s.visitors[ip]
 	if !exists {
-		rl.visitors[ip] = &Visitor{time.Now(), 1}
-		v = rl.visitors[ip]
+		s.visitors[ip] = &Visitor{now, 1}
+		v = s.visitors[ip]
 	} else {
-		if time.Since(v.lastSeen) > time.Minute {
+		if now.Sub(v.lastSeen) > time.Minute {
 			v.count = 1
-			v.lastSeen = time.Now()
+			v.lastSeen = now
 		} else {
 			if v.count >= 60 {
 				return false // Global rate limit exceeded
@@ -28,15 +31,15 @@ func (rl *RateLimiter) Allow(ip, path string) bool {
 	// Check specific endpoint limit for login
 	if path == "/api/login" {
 		loginKey := ip + ":login"
-		loginV, loginExists := rl.visitors[loginKey]
+		loginV, loginExists := s.visitors[loginKey]
 		if !loginExists {
-			rl.visitors[loginKey] = &Visitor{time.Now(), 1}
+			s.visitors[loginKey] = &Visitor{now, 1}
 			return true
 		}
 
-		if time.Since(loginV.lastSeen) > time.Minute {
+		if now.Sub(loginV.lastSeen) > time.Minute {
 			loginV.count = 1
-			loginV.lastSeen = time.Now()
+			loginV.lastSeen = now
 			return true
 		}
 
@@ -51,16 +54,19 @@ func (rl *RateLimiter) Allow(ip, path string) bool {
 }
 
 func (rl *RateLimiter) Cleanup() {
-	for {
-		time.Sleep(time.Minute)
-		rl.Lock()
-		now := time.Now()
-		for key, v := range rl.visitors {
-			if now.Sub(v.lastSeen) > 5*time.Minute {
-				delete(rl.visitors, key)
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		for _, s := range rl.shards {
+			s.Lock()
+			now := time.Now()
+			for key, v := range s.visitors {
+				if now.Sub(v.lastSeen) > 5*time.Minute {
+					delete(s.visitors, key)
+				}
 			}
+			s.Unlock()
 		}
-		rl.Unlock()
 	}
 }
 
@@ -68,8 +74,7 @@ func (sm *SessionManager) Create(username string) *Session {
 	sm.Lock()
 	defer sm.Unlock()
 
-	sessionID := generateAPIKey()
-	csrfToken := generateAPIKey()
+	sessionID, csrfToken := generateTwoKeys()
 
 	session := &Session{
 		ID:        sessionID,
@@ -94,9 +99,16 @@ func (sm *SessionManager) Get(sessionID string) (*Session, bool) {
 	return session, true
 }
 
+func (sm *SessionManager) Delete(sessionID string) {
+	sm.Lock()
+	defer sm.Unlock()
+	delete(sm.sessions, sessionID)
+}
+
 func (sm *SessionManager) Cleanup() {
-	for {
-		time.Sleep(time.Hour)
+	ticker := time.NewTicker(time.Hour)
+	defer ticker.Stop()
+	for range ticker.C {
 		sm.Lock()
 		now := time.Now()
 		for id, session := range sm.sessions {

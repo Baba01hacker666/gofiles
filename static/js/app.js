@@ -98,7 +98,16 @@ async function handleLogin(e) {
     }
 }
 
-function handleLogout() {
+async function handleLogout() {
+    try {
+        await fetch('/api/logout', {
+            method: 'POST',
+            headers: { 'X-CSRF-Token': csrfToken }
+        });
+    } catch (e) {
+        // Ignore errors — clear client state regardless
+    }
+    csrfToken = '';
     document.getElementById('loginScreen').style.display = 'flex';
     document.getElementById('mainApp').style.display = 'none';
     selectedFiles.clear();

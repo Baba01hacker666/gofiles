@@ -1,6 +1,7 @@
 package main
 
 import (
+	"hash/fnv"
 	"sync"
 	"time"
 )
@@ -22,9 +23,33 @@ type Visitor struct {
 	count    int
 }
 
-type RateLimiter struct {
-	sync.RWMutex
+const numRateLimitShards = 32
+
+type rateLimiterShard struct {
+	sync.Mutex
 	visitors map[string]*Visitor
+}
+
+// RateLimiter is sharded by IP hash to minimise lock contention under high
+// concurrency.  Each shard protects its own visitor map independently.
+type RateLimiter struct {
+	shards [numRateLimitShards]*rateLimiterShard
+}
+
+func NewRateLimiter() *RateLimiter {
+	rl := &RateLimiter{}
+	for i := range rl.shards {
+		rl.shards[i] = &rateLimiterShard{
+			visitors: make(map[string]*Visitor),
+		}
+	}
+	return rl
+}
+
+func (rl *RateLimiter) shard(ip string) *rateLimiterShard {
+	h := fnv.New32a()
+	h.Write([]byte(ip))
+	return rl.shards[h.Sum32()%numRateLimitShards]
 }
 
 type FileInfo struct {

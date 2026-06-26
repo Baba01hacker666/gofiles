@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -54,9 +55,7 @@ func init() {
 var (
 	apiKey = generateAPIKey()
 
-	rateLimiter = &RateLimiter{
-		visitors: make(map[string]*Visitor),
-	}
+	rateLimiter = NewRateLimiter()
 
 	sessions = &SessionManager{
 		sessions: make(map[string]*Session),
@@ -76,9 +75,10 @@ func main() {
 
 	http.HandleFunc("/api/csrf", securityHeadersMiddleware(rateLimitMiddleware(getCsrfTokenHandler)))
 	http.HandleFunc("/api/login", securityHeadersMiddleware(rateLimitMiddleware(loginHandler)))
+	http.HandleFunc("/api/logout", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(logoutHandler))))
 	http.HandleFunc("/api/files", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(listFilesHandler))))
 	http.HandleFunc("/api/upload", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(uploadHandler))))
-	http.HandleFunc("/api/download", securityHeadersMiddleware(authMiddleware(downloadHandler)))
+	http.HandleFunc("/api/download", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(downloadHandler))))
 	http.HandleFunc("/api/delete", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(deleteHandler))))
 	http.HandleFunc("/api/rename", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(renameHandler))))
 	http.HandleFunc("/api/mkdir", securityHeadersMiddleware(authMiddleware(rateLimitMiddleware(createDirHandler))))
@@ -93,14 +93,24 @@ func main() {
 	log.Printf(" - Port: %s\n", serverPort)
 	log.Printf(" - Admin Username: %s\n", adminUsername)
 	log.Printf(" - Upload Directory: %s\n", uploadDir)
+
+	srv := &http.Server{
+		Addr:              ":" + serverPort,
+		ReadTimeout:       10 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 16, // 64KB
+	}
+
 	if certFile != "" && keyFile != "" {
 		log.Printf("Server starting on https://localhost:%s\n", serverPort)
-		if err := http.ListenAndServeTLS(":"+serverPort, certFile, keyFile, nil); err != nil {
+		if err := srv.ListenAndServeTLS(certFile, keyFile); err != nil {
 			log.Fatal(err)
 		}
 	} else {
 		log.Printf("Server starting on http://localhost:%s\n", serverPort)
-		if err := http.ListenAndServe(":"+serverPort, nil); err != nil {
+		if err := srv.ListenAndServe(); err != nil {
 			log.Fatal(err)
 		}
 	}
